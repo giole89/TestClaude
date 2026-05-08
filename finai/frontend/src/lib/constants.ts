@@ -1,20 +1,85 @@
-export const STOCK_UNIVERSE = [
+// ─── Stocks ───────────────────────────────────────────────────────────────────
+
+// USA — Mega cap + S&P 500 leaders
+export const STOCKS_US = [
   'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'TSLA', 'BRK-B', 'JPM', 'V',
   'UNH', 'XOM', 'LLY', 'JNJ', 'WMT', 'MA', 'PG', 'HD', 'MRK', 'AVGO',
   'CVX', 'PEP', 'COST', 'ABBV', 'KO', 'ADBE', 'CSCO', 'ACN', 'MCD', 'CRM',
   'BAC', 'TMO', 'ABT', 'NFLX', 'ORCL', 'AMD', 'INTC', 'QCOM', 'TXN', 'PM',
-  'ISP.MI', 'ENI.MI', 'ENEL.MI', 'TIT.MI', 'MB.MI', 'UCG.MI', 'STM.MI',
-  'ASML.AS', 'NESN.SW', 'ROG.SW', 'NOVN.SW', 'SAP.DE', 'SIE.DE', 'ALV.DE',
-  'MC.PA', 'OR.PA', 'TTE.PA', 'BNP.PA', 'SAN.PA', 'AIR.PA',
+  'AMGN', 'GE', 'HON', 'CAT', 'GS', 'BKNG', 'SPGI', 'BLK', 'ISRG', 'NOW',
+  'UBER', 'ABNB', 'SNOW', 'PLTR', 'ARM', 'SMCI', 'CRWD', 'PANW', 'ZS', 'NET',
 ]
 
-export const ETF_UNIVERSE = [
-  'VWCE.DE', 'IWDA.AS', 'VUSA.AS', 'CSPX.AS', 'EQQQ.AS', 'WSML.AS',
-  'SPY', 'QQQ', 'IVV', 'VOO', 'VTI', 'VIG', 'SCHD', 'XLK', 'XLF', 'XLE',
-  'IUIT.AS', 'IUHC.AS', 'IUFS.AS', 'EXV1.DE',
-  'AGGH.AS', 'IEAG.AS', 'IBTM.AS', 'VGEA.AS',
-  'IQQH.DE', 'CLEAN.AS', '2B76.DE', 'WTAI.AS',
+// Germany — DAX 40
+export const STOCKS_DE = [
+  'SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'BAYN.DE', 'BMW.DE', 'MBG.DE',
+  'ADS.DE', 'BASF.DE', 'VOW3.DE', 'DBK.DE', 'RWE.DE', 'EOAN.DE', 'MUV2.DE',
+  'IFX.DE', 'ZAL.DE', 'BEI.DE', 'HEI.DE', 'VNA.DE', 'RHM.DE', 'PUM.DE',
+  'DHL.DE', 'FME.DE', 'QIA.DE', 'CON.DE', 'MTX.DE', 'SHL.DE',
 ]
+
+// France — CAC 40
+export const STOCKS_FR = [
+  'MC.PA', 'OR.PA', 'TTE.PA', 'BNP.PA', 'SAN.PA', 'AIR.PA',
+  'SU.PA', 'AI.PA', 'DG.PA', 'CS.PA', 'ORA.PA', 'ENGI.PA', 'KER.PA',
+  'SGO.PA', 'BN.PA', 'VIE.PA', 'RMS.PA', 'CAP.PA', 'DSY.PA', 'PUB.PA',
+  'HO.PA', 'RNO.PA', 'ACA.PA', 'WLN.PA', 'LR.PA',
+]
+
+// Italy — FTSE MIB
+export const STOCKS_IT = [
+  'ISP.MI', 'ENI.MI', 'ENEL.MI', 'TIT.MI', 'MB.MI', 'UCG.MI', 'STM.MI',
+  'G.MI', 'PRY.MI', 'RACE.MI', 'MONC.MI', 'LDO.MI', 'STLA.MI', 'A2A.MI',
+  'CNHI.MI', 'BAMI.MI', 'REC.MI', 'DIA.MI', 'FBK.MI', 'CPR.MI',
+]
+
+// Netherlands — AEX
+export const STOCKS_NL = [
+  'ASML.AS', 'INGA.AS', 'PHIA.AS', 'AD.AS', 'AKZA.AS',
+  'NN.AS', 'WKL.AS', 'ADYEN.AS', 'HEIA.AS', 'BESI.AS', 'IMCD.AS',
+]
+
+// Spain — IBEX 35
+export const STOCKS_ES = [
+  'ITX.MC', 'IBE.MC', 'SAN.MC', 'BBVA.MC', 'REP.MC',
+  'TEF.MC', 'AMS.MC', 'ELE.MC', 'FER.MC', 'CLNX.MC', 'ANA.MC',
+]
+
+// Switzerland
+export const STOCKS_CH = [
+  'NESN.SW', 'ROG.SW', 'NOVN.SW', 'ABBN.SW', 'ZURN.SW', 'LONN.SW',
+]
+
+export const STOCK_UNIVERSE = [
+  ...STOCKS_US,
+  ...STOCKS_DE,
+  ...STOCKS_FR,
+  ...STOCKS_IT,
+  ...STOCKS_NL,
+  ...STOCKS_ES,
+  ...STOCKS_CH,
+]
+
+// ─── ETF ─────────────────────────────────────────────────────────────────────
+
+export const ETF_UNIVERSE = [
+  // Global / World
+  'VWCE.DE', 'IWDA.AS', 'VUSA.AS', 'CSPX.AS', 'EQQQ.AS', 'WSML.AS',
+  // US
+  'SPY', 'QQQ', 'IVV', 'VOO', 'VTI', 'VIG', 'SCHD', 'XLK', 'XLF', 'XLE', 'XLV',
+  // Sector / factor
+  'IUIT.AS', 'IUHC.AS', 'IUFS.AS', 'EXV1.DE',
+  // Bonds
+  'AGGH.AS', 'IEAG.AS', 'IBTM.AS', 'VGEA.AS', 'IGLO.AS',
+  // Thematic
+  'IQQH.DE', 'CLEAN.AS', '2B76.DE', 'WTAI.AS', 'ROBO.AS', 'HEAL.AS',
+  // Gold / commodities
+  'SGLD.AS', 'IGLN.AS',
+  // Emerging markets
+  'EIMI.AS', 'VFEM.AS',
+]
+
+// ─── Indices ──────────────────────────────────────────────────────────────────
 
 export const INDICES = [
   { ticker: '^GSPC', label: 'S&P 500' },
@@ -29,8 +94,11 @@ export const INDICES = [
 ]
 
 export const WATCHLIST_QUICK = [
-  'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'TSLA', 'ISP.MI', 'ENEL.MI', 'IWDA.AS', 'VWCE.DE', 'SPY', 'QQQ',
+  'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'TSLA', 'SAP.DE', 'ASML.AS',
+  'ISP.MI', 'ENEL.MI', 'MC.PA', 'IWDA.AS', 'VWCE.DE', 'SPY', 'QQQ',
 ]
+
+// ─── Portfolio templates ──────────────────────────────────────────────────────
 
 export type ProfileKey = 'conservative' | 'balanced' | 'growth' | 'aggressive'
 

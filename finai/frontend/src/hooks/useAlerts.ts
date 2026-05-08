@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 import axios from 'axios'
-import { useAlertStore, Alert } from '@/store/useAlertStore'
+import { BackendAlert } from './useAlertsBackend'
 import { API_BASE } from '@/lib/constants'
 
-function checkAlert(alert: Alert, price: number, dayChangePct: number): boolean {
+function checkAlert(alert: BackendAlert, price: number, dayChangePct: number): boolean {
   switch (alert.type) {
     case 'above': return price > alert.value
     case 'below': return price < alert.value
@@ -13,7 +13,7 @@ function checkAlert(alert: Alert, price: number, dayChangePct: number): boolean 
   }
 }
 
-function showNotification(alert: Alert, price: number) {
+function showNotification(alert: BackendAlert, price: number) {
   if ('Notification' in window && Notification.permission === 'granted') {
     new Notification(`FINAI Alert: ${alert.ticker}`, {
       body: `Prezzo attuale: ${price.toFixed(2)} — Condizione scattata!`,
@@ -21,8 +21,7 @@ function showNotification(alert: Alert, price: number) {
   }
 }
 
-export function useAlerts(active: boolean) {
-  const { alerts, fireAlert } = useAlertStore()
+export function useAlerts(active: boolean, alerts: BackendAlert[], onFire: (id: string, price: number) => void) {
   const intervalRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
@@ -41,12 +40,11 @@ export function useAlerts(active: boolean) {
           params: { tickers: tickers.join(',') },
         })
         const quotes: Array<{ ticker: string; price: number; dayChangePct: number }> = res.data
-
         for (const alert of alerts) {
           const quote = quotes.find(q => q.ticker === alert.ticker)
           if (!quote) continue
           if (checkAlert(alert, quote.price, quote.dayChangePct)) {
-            fireAlert(alert.id, quote.price)
+            onFire(alert.id, quote.price)
             showNotification(alert, quote.price)
           }
         }
@@ -58,5 +56,5 @@ export function useAlerts(active: boolean) {
     checkAll()
     intervalRef.current = setInterval(checkAll, 60_000)
     return () => clearInterval(intervalRef.current)
-  }, [active, alerts, fireAlert])
+  }, [active, alerts, onFire])
 }

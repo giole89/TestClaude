@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type TabId = 'market' | 'analyze' | 'compare' | 'alerts' | 'longterm' | 'portfolio' | 'suggested' | 'guide'
+export type TabId = 'market' | 'analyze' | 'compare' | 'alerts' | 'longterm' | 'portfolio' | 'suggested' | 'ipo' | 'guide'
 
 interface AppState {
   activeTab: TabId
@@ -36,9 +36,7 @@ export const useAppStore = create<AppState>()(
       name: 'finai-app',
       partialize: (s) => ({ theme: s.theme }),
       onRehydrateStorage: () => (state) => {
-        if (state) {
-          document.documentElement.setAttribute('data-theme', state.theme)
-        }
+        if (state) document.documentElement.setAttribute('data-theme', state.theme)
       },
     }
   )

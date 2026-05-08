@@ -12,15 +12,11 @@ const AlertsPage = lazy(() => import('@/pages/AlertsPage').then(m => ({ default:
 const LongTermPage = lazy(() => import('@/pages/LongTermPage').then(m => ({ default: m.LongTermPage })))
 const PortfolioPage = lazy(() => import('@/pages/PortfolioPage').then(m => ({ default: m.PortfolioPage })))
 const SuggestedPage = lazy(() => import('@/pages/SuggestedPage').then(m => ({ default: m.SuggestedPage })))
+const IPOPage = lazy(() => import('@/pages/IPOPage').then(m => ({ default: m.IPOPage })))
 const GuidePage = lazy(() => import('@/pages/GuidePage').then(m => ({ default: m.GuidePage })))
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 2,
-    },
-  },
+  defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 2 } },
 })
 
 function PageLoader() {
@@ -33,7 +29,6 @@ function PageLoader() {
 
 function TabRouter() {
   const { activeTab } = useAppStore()
-
   return (
     <Suspense fallback={<PageLoader />}>
       {activeTab === 'market' && <MarketPage />}
@@ -43,6 +38,7 @@ function TabRouter() {
       {activeTab === 'longterm' && <LongTermPage />}
       {activeTab === 'portfolio' && <PortfolioPage />}
       {activeTab === 'suggested' && <SuggestedPage />}
+      {activeTab === 'ipo' && <IPOPage />}
       {activeTab === 'guide' && <GuidePage />}
     </Suspense>
   )
@@ -54,9 +50,7 @@ export default function App() {
       <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
         <Header />
         <NavTabs />
-        <main>
-          <TabRouter />
-        </main>
+        <main><TabRouter /></main>
         <PandaLoader />
       </div>
     </QueryClientProvider>
