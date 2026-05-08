@@ -1,0 +1,140 @@
+:root,
+[data-theme="dark"] {
+  --bg: #07080a;
+  --s1: #0d0f13;
+  --s2: #12151b;
+  --s3: #181c24;
+  --border: #1f2430;
+  --border2: #2a3040;
+  --acc: #e8f542;
+  --acc2: #42f5d4;
+  --acc3: #f5a742;
+  --red: #f54242;
+  --text: #dde2ee;
+  --muted: #4a5568;
+  --muted2: #6b7a9a;
+}
+
+[data-theme="light"] {
+  --bg: #f4f5f7;
+  --s1: #ffffff;
+  --s2: #f9fafb;
+  --s3: #eef0f4;
+  --border: #dde1eb;
+  --border2: #c8cedd;
+  --acc: #5a7a00;
+  --acc2: #007a6b;
+  --acc3: #c47000;
+  --red: #d42020;
+  --text: #1a1f2e;
+  --muted: #7a8499;
+  --muted2: #4a5568;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  line-height: 1.5;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--s2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+h2 {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+h3 {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text);
+  margin: 16px 0 8px;
+}
+
+p {
+  margin-bottom: 12px;
+}
+
+ul {
+  padding-left: 20px;
+  margin-bottom: 12px;
+}
+
+li {
+  margin-bottom: 4px;
+}
+
+strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+blockquote {
+  margin: 16px 0;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.guide-content h2 {
+  font-size: 1.4rem;
+  margin-bottom: 16px;
+  color: var(--acc);
+}
+
+.guide-content h3 {
+  margin-top: 20px;
+  color: var(--acc2);
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+input:focus {
+  border-color: var(--acc2) !important;
+}
