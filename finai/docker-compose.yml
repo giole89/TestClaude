@@ -1,11 +1,18 @@
 version: "3.9"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FINAI — Ambiente di sviluppo locale con Docker Compose
+# FINAI — Stack completo: PostgreSQL + Backend Java + Frontend React
 #
-# Avvio: docker compose up -d
-# Poi:   cd backend && mvn spring-boot:run
-#        cd frontend && npm run dev
+# Prerequisiti: Docker Desktop installato
+#
+# Avvio rapido:
+#   1. Copia .env.example in .env e inserisci ANTHROPIC_API_KEY
+#   2. docker compose up -d --build
+#   3. Apri http://localhost:5173
+#
+# Stop:    docker compose down
+# Logs:    docker compose logs -f
+# Reset DB: docker compose down -v
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -29,7 +36,39 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── PgAdmin (opzionale, per ispezione visuale del DB) ─────────────────────
+  # ── Backend Java / Spring Boot ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: finai-backend
+    restart: unless-stopped
+    environment:
+      DB_URL:             jdbc:postgresql://postgres:5432/finai
+      DB_USER:            finai
+      DB_PASSWORD:        finai
+      ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY:-}
+      AI_MODEL:           ${AI_MODEL:-claude-haiku-4-5-20251001}
+      PORT:               3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Frontend React / Vite ──────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: finai-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  # ── PgAdmin (opzionale) ────────────────────────────────────────────────────
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: finai-pgadmin
@@ -43,7 +82,7 @@ services:
       postgres:
         condition: service_healthy
     profiles:
-      - dev-tools    # Avvia solo con: docker compose --profile dev-tools up -d
+      - dev-tools
 
 volumes:
   finai_pgdata:

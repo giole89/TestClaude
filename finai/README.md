@@ -316,18 +316,51 @@ finai/
 
 ## Installazione e avvio
 
-### Prerequisiti
+### Opzione A — Docker (consigliata, zero prerequisiti)
+
+L'unico requisito è **Docker Desktop** installato.
+
+```bash
+git clone https://github.com/giole89/TestClaude.git
+cd TestClaude/finai
+git checkout claude/finai-web-app-I6tE2
+
+# 1. Crea il file .env con la tua API key Anthropic
+cp .env.example .env
+# Modifica .env e inserisci: ANTHROPIC_API_KEY=sk-ant-api03-...
+
+# 2. Avvia tutto (prima volta: ~3-5 minuti per la build)
+docker compose up -d --build
+
+# 3. Apri il browser
+#    http://localhost:5173
+```
+
+Comandi utili:
+
+```bash
+docker compose logs -f          # Segui i log in tempo reale
+docker compose down             # Ferma tutto (dati preservati)
+docker compose down -v          # Ferma tutto e cancella il DB
+docker compose up -d            # Riavvia (senza rebuild)
+docker compose up -d --build    # Riavvia con rebuild delle immagini
+```
+
+---
+
+### Opzione B — Manuale (Java + Node + PostgreSQL nativi)
+
+#### Prerequisiti
 
 | Tool | Versione minima | Note |
 |------|-----------------|------|
 | **Java JDK** | 21 | OpenJDK o Oracle JDK 21 LTS |
 | **Apache Maven** | 3.9 | `mvn -version` |
 | **Node.js** | 18 | `node -v` |
-| **PostgreSQL** | 16 | oppure Docker con `docker compose up -d postgres` |
-| **Docker** | 24+ | solo per `docker compose`, opzionale se PostgreSQL nativo |
+| **PostgreSQL** | 16 | nativo o via `docker compose up -d postgres` |
 | **API key Anthropic** | — | Obbligatoria per la chat AI |
 
-### 1. Clona il repository
+#### 1. Clona il repository
 
 ```bash
 git clone https://github.com/giole89/TestClaude.git
@@ -335,26 +368,18 @@ cd TestClaude/finai
 git checkout claude/finai-web-app-I6tE2
 ```
 
-### 2. Avvia il database PostgreSQL
-
-#### Con Docker Compose (consigliato)
+#### 2. Crea il database
 
 ```bash
-# Avvia solo PostgreSQL in background
-npm run db:up
-# oppure direttamente:
+# Con Docker (solo PostgreSQL)
 docker compose up -d postgres
-```
 
-#### Con PostgreSQL nativo
-
-```bash
-# Crea il database e l'utente
+# oppure con PostgreSQL nativo
 sudo -u postgres psql -c "CREATE USER finai WITH PASSWORD 'finai';"
 sudo -u postgres psql -c "CREATE DATABASE finai OWNER finai;"
 ```
 
-### 3. Configura le variabili d'ambiente
+#### 3. Configura le variabili d'ambiente
 
 ```bash
 cp backend/.env.example backend/.env
@@ -373,38 +398,7 @@ AI_MODEL=claude-haiku-4-5-20251001
 
 > Flyway applica automaticamente le migrazioni SQL al primo avvio. Non serve nessun setup manuale dello schema.
 
-### 4. Installa le dipendenze frontend
-
-```bash
-npm run install:all
-# oppure solo:
-cd frontend && npm install
-```
-
-Il backend Java usa Maven e non richiede `npm install`.
-
-### 5. Avvia l'applicazione
-
-#### Avvio simultaneo (consigliato)
-
-```bash
-# Dalla root finai/
-npm run dev
-```
-
-Avvia in parallelo:
-- **Backend**: `mvn spring-boot:run` sulla porta **3001**
-- **Frontend**: `vite` sulla porta **5173**
-
-Output atteso:
-```
-[backend]  Tomcat started on port 3001 (http)
-[backend]  Started FinaiApplication in 4.2 seconds
-[backend]  Flyway: Successfully applied 3 migrations to schema "public"
-[frontend] Local: http://localhost:5173
-```
-
-#### Avvio separato
+#### 4. Avvia l'applicazione
 
 ```bash
 # Terminale 1 — Backend Java
@@ -413,15 +407,16 @@ mvn spring-boot:run
 
 # Terminale 2 — Frontend
 cd frontend
+npm install
 npm run dev
 ```
 
-### 6. Apri nel browser
+### URL applicazione
 
 ```
-http://localhost:5173        # App principale
-http://localhost:3001/swagger-ui.html    # Swagger UI (documentazione API)
-http://localhost:3001/health             # Health check
+http://localhost:5173                    # App principale
+http://localhost:3001/swagger-ui.html   # Swagger UI (documentazione API)
+http://localhost:3001/health            # Health check
 ```
 
 Il dev server Vite fa da proxy per tutte le richieste `/api/*` verso il backend.
