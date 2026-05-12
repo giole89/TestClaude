@@ -1,0 +1,19 @@
+# Maven build output
+finai/backend/target/
+
+# Node.js
+node_modules/
+finai/frontend/node_modules/
+
+# Environment files
+.env
+finai/backend/.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
