@@ -13,8 +13,9 @@
 - [Installazione e avvio](#installazione-e-avvio)
 - [Variabili d'ambiente](#variabili-dambiente)
 - [API Backend](#api-backend)
-- [Persistenza dati — SQLite](#persistenza-dati--sqlite)
+- [Persistenza dati — PostgreSQL](#persistenza-dati--postgresql)
 - [Resilienza — Retry e Circuit Breaker](#resilienza--retry-e-circuit-breaker)
+- [Test](#test)
 - [Indicatori tecnici implementati](#indicatori-tecnici-implementati)
 - [Sistema di caching](#sistema-di-caching)
 - [Universo di strumenti supportati](#universo-di-strumenti-supportati)
@@ -29,12 +30,12 @@ FINAI è composta da **9 sezioni** accessibili tramite la barra di navigazione s
 | Tab | Icona | Descrizione |
 |-----|-------|-------------|
 | **Mercato** | 📈 | Dashboard real-time con IndexBar (9 indici/valute), sentiment meter e griglia top/worst azioni + ETF |
-| **Analisi** | 🔭 | Analisi completa di un ticker con ricerca autocomplete: grafico con SMA, 8 metriche tecniche, segnale BUY/SELL/HOLD, scenari 30gg |
+| **Analisi** | 🔭 | Analisi completa di un ticker con ricerca autocomplete: grafico SMA, 8 metriche tecniche, segnale BUY/SELL/HOLD, scenari 30gg |
 | **Confronto** | ⚖️ | Confronto fianco a fianco di due strumenti con tutti gli indicatori e verdetto automatico |
-| **Alert** | 🔔 | Alert sui prezzi (sopra/sotto soglia, variazione %) con notifiche browser native — persistiti su SQLite |
+| **Alert** | 🔔 | Alert sui prezzi (sopra/sotto soglia, variazione %) con notifiche browser native — persistiti su PostgreSQL |
 | **Lungo Termine** | 🌱 | Score 0–100 su 7 criteri per valutare idoneità DCA + strategia di accumulo consigliata |
-| **Portafoglio** | 💼 | Tracker P&L personale: aggiunge posizioni, aggiorna prezzi live, mostra gain/loss per asset e totale — persistito su SQLite |
-| **IPO** | 🏛️ | Monitoraggio IPO: calendario prossime quotazioni (NASDAQ), performance IPO recenti, watchlist personale con tracker lock-up period |
+| **Portafoglio** | 💼 | Tracker P&L personale: aggiunge posizioni, aggiorna prezzi live, mostra gain/loss — persistito su PostgreSQL |
+| **IPO** | 🏛️ | Monitoraggio IPO: calendario prossime quotazioni (NASDAQ), performance IPO recenti, watchlist con tracker lock-up |
 | **Suggeriti** | 🎯 | 4 portafogli modello (Conservativo/Bilanciato/Crescita/Aggressivo) con allocazioni e metriche attese |
 | **Guida** | 📚 | Guida completa in italiano: glossario, indicatori tecnici, ETF, DCA, errori comuni |
 
@@ -45,72 +46,83 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
 ## Architettura
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           Browser (React 18)                             │
-│                                                                          │
-│  ┌──────────┐  ┌───────────────┐  ┌──────────┐  ┌───────────────────┐  │
-│  │ Zustand  │  │ React Query   │  │ Recharts │  │  Framer Motion    │  │
-│  │  Store   │  │ (mutations +  │  │  Charts  │  │  Animations       │  │
-│  │ (UI/chat)│  │  cache)       │  │          │  │                   │  │
-│  └──────────┘  └───────────────┘  └──────────┘  └───────────────────┘  │
-│                       │ fetch / SSE / mutations                          │
-└───────────────────────┼─────────────────────────────────────────────────┘
-                        │ HTTP :5173 → proxy → :3001
-                        ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      Backend (Express + TypeScript)                      │
-│                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                             Routes                                  │ │
-│  │  /api/quote/:ticker[/full]   /api/batch   /api/history/:ticker     │ │
-│  │  /api/indices                /api/search?q=                        │ │
-│  │  /api/portfolio  (CRUD)      /api/alerts  (CRUD + fire)            │ │
-│  │  /api/ipo/upcoming|recent    /api/ipo/watchlist (CRUD)             │ │
-│  │  /api/ai/chat (SSE)                                                │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│          │                      │                      │                 │
-│          ▼                      ▼                      ▼                 │
-│  ┌───────────────┐   ┌──────────────────┐   ┌──────────────────────┐   │
-│  │ yahoo-finance2│   │   NASDAQ API     │   │  Anthropic Claude    │   │
-│  │ (quote, hist, │   │ (IPO calendar:   │   │  (SSE streaming      │   │
-│  │  search)      │   │  upcoming/recent)│   │   risposte AI)       │   │
-│  └───────────────┘   └──────────────────┘   └──────────────────────┘   │
-│          │                      │                                        │
-│          └──────────┬───────────┘                                        │
-│                     ▼                                                    │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                   Retry + Circuit Breaker                         │   │
-│  │  withRetry(fn, 3 tentativi, backoff 2s→4s→8s)                   │   │
-│  │  CircuitBreaker(apre dopo 5 errori, reset dopo 60s)              │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                     │                                                    │
-│                     ▼                                                    │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                     NodeCache (5 tier)                            │   │
-│  │  quotes: 60s │ history: 4h │ batch: 120s │ AI: 30min │ IPO: 1h  │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                     │                                                    │
-│                     ▼                                                    │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │              SQLite — better-sqlite3 (WAL mode)                   │   │
-│  │  portfolio_items │ alerts │ ipo_watchlist                         │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                            Browser (React 18)                               │
+│                                                                             │
+│  ┌──────────┐  ┌─────────────────┐  ┌──────────┐  ┌──────────────────┐   │
+│  │ Zustand  │  │  React Query    │  │ Recharts │  │  Framer Motion   │   │
+│  │ (UI/chat)│  │ (CRUD + cache)  │  │ (grafici)│  │  (animazioni)    │   │
+│  └──────────┘  └─────────────────┘  └──────────┘  └──────────────────┘   │
+│                        │ HTTP / SSE                                         │
+└────────────────────────┼───────────────────────────────────────────────────┘
+                         │ :5173 → proxy → :3001
+                         ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│             Backend Java 21 — Spring Boot 3.3 (thread virtuali)            │
+│                                                                             │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                          REST Controllers                             │  │
+│  │  /api/quote[/full] │ /api/batch │ /api/history │ /api/indices        │  │
+│  │  /api/search       │ /api/portfolio (CRUD) │ /api/alerts (CRUD+fire) │  │
+│  │  /api/ipo/upcoming|recent │ /api/ipo/watchlist (CRUD)                │  │
+│  │  /api/ai/chat (SSE) │ /health │ /swagger-ui.html                     │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                    │                        │                    │          │
+│                    ▼                        ▼                    ▼          │
+│         ┌─────────────────┐   ┌──────────────────┐   ┌──────────────────┐ │
+│         │ YahooFinance    │   │  NASDAQ IPO API  │   │ Anthropic Claude │ │
+│         │ Service         │   │  Service         │   │ Service (SSE)    │ │
+│         │ (quote/history/ │   │  (calendar:      │   │                  │ │
+│         │  search/batch)  │   │   upcoming/recent│   │                  │ │
+│         └────────┬────────┘   └────────┬─────────┘   └──────────────────┘ │
+│                  └──────────┬──────────┘                                   │
+│                             ▼                                               │
+│         ┌──────────────────────────────────────────────────────────────┐   │
+│         │           Resilience4j (Retry + Circuit Breaker)              │   │
+│         │  @Retry(3 tentativi, backoff 2s→4s→8s, per Yahoo e NASDAQ)   │   │
+│         │  @CircuitBreaker(apre al 50% errori su 10 call, reset 60s)   │   │
+│         └──────────────────────────┬───────────────────────────────────┘   │
+│                                    │                                        │
+│         ┌──────────────────────────▼───────────────────────────────────┐   │
+│         │                  Caffeine Cache (5 tier)                       │   │
+│         │  quotes:60s │ batch:120s │ history:4h │ ipo:1h │ search:30s  │   │
+│         └──────────────────────────┬───────────────────────────────────┘   │
+│                                    │                                        │
+│         ┌──────────────────────────▼───────────────────────────────────┐   │
+│         │              Spring Data JPA + Flyway                          │   │
+│         │  PortfolioRepository │ AlertRepository │ IpoWatchlistRepository│   │
+│         └──────────────────────────┬───────────────────────────────────┘   │
+│                                    │                                        │
+└────────────────────────────────────┼───────────────────────────────────────┘
+                                     │
+                         ┌───────────▼──────────────┐
+                         │   PostgreSQL 16            │
+                         │   portfolio_items          │
+                         │   alerts                   │
+                         │   ipo_watchlist            │
+                         └──────────────────────────┘
 ```
 
-### Perché un backend separato?
+### Perché Java/Spring Boot per il backend?
 
-Yahoo Finance non espone un'API pubblica CORS-safe: qualsiasi chiamata diretta dal browser viene bloccata. Il backend Node.js agisce da proxy server-side, recupera i dati, li calcola, li serve al frontend già elaborati e li persiste su SQLite. Questo elimina il problema CORS alla radice senza workaround.
+- **Thread virtuali (Java 21)**: il server gestisce migliaia di chiamate SSE concorrenti senza esaurire i thread OS
+- **Spring Data JPA + Flyway**: ORM type-safe con schema versionato — nessuna migrazione manuale
+- **Resilience4j**: retry e circuit breaker decorativi con `@Retry`/`@CircuitBreaker` — zero codice boilerplate
+- **OpenAPI/Swagger**: documentazione automatica dell'API su `/swagger-ui.html`
+- **Type safety**: Java strict typing + Bean Validation (`@Valid`) garantisce contratti API robusti
+
+### Perché un backend separato (proxy)?
+
+Yahoo Finance non espone un'API pubblica CORS-safe: qualsiasi chiamata diretta dal browser viene bloccata. Il backend Spring Boot agisce da proxy server-side, recupera i dati, li elabora con `IndicatorsService`, li cachea in Caffeine e li serve al frontend già pronti.
 
 ### Flusso dati — Mercato
 
 ```
 React Query (refetch ogni 60s)
   → GET /api/batch?tickers=AAPL,MSFT,...
-  → backend: chunking in gruppi da 10, fetchBatch parallelo
-  → withCircuitBreaker(withRetry(yahoo-finance2.quote()))
-  → calcolo rangePosition 52W
-  → risposta JSON + set cache 120s
+  → BatchController → YahooFinanceService
+  → @Retry + @CircuitBreaker → yahoo v7/finance/quote
+  → calcRangePosition() → risposta JSON + Caffeine cache 120s
   → frontend: sort per dayChangePct → top/worst grid
 ```
 
@@ -119,76 +131,61 @@ React Query (refetch ogni 60s)
 ```
 useFullQuote(ticker)
   → GET /api/quote/:ticker/full
-  → backend: fetchQuote() + fetchHistory('1y') in parallelo
-  → calcolo su array closes[]: RSI(14), SMA(20/50/200),
-    volatilità annualizzata, momentum 30gg, BullScore 0-100
-  → risposta JSON con history inclusa + set cache 60s
-  → frontend: StockHero, PriceChart (SMA overlay), SignalBadge, PredictionCard
-```
-
-### Flusso dati — IPO
-
-```
-useUpcomingIPOs()
-  → GET /api/ipo/upcoming
-  → backend: NASDAQ API https://api.nasdaq.com/api/ipo/calendar?date=YYYY-MM
-    con headers User-Agent/Referer/Origin per bypassare la restrizione browser
-  → parsing risposta → normalizzazione UpcomingIPO[]
-  → cache 1h
-  → frontend: tabella con data, exchange, settore, prezzo stimato
-
-useIPOWatchlist()
-  → GET/POST/PATCH/DELETE /api/ipo/watchlist
-  → SQLite: ipo_watchlist table
-  → calcolo stato lock-up: giorni rimanenti dal ipoDate + lockupDays
+  → QuoteController → YahooFinanceService.fetchQuote() + fetchHistory("1y") in parallelo
+  → IndicatorsService: calcRsi(14), calcSma(20/50/200), calcVolatility,
+    calcMomentum(30), calcBullScore() → tutto su array closes[]
+  → FullQuoteDto con history inclusa + cache 60s
+  → StockHero, PriceChart (SMA overlay), SignalBadge, PredictionCard
 ```
 
 ### Flusso dati — AI Chat (SSE)
 
 ```
 useChat.sendMessage(text, context)
-  → POST /api/ai/chat  { messages, context: { tab, tickerData, ... } }
-  → backend: buildSystemPrompt(context) con dati contestuali
-  → client.messages.stream() → Anthropic API
-  → res.write("data: {text: chunk}\n\n") per ogni token
-  → frontend reader loop: appendToMessage() su ogni chunk
-  → blinking cursor durante streaming, finalizeMessage() al [DONE]
+  → POST /api/ai/chat  { messages, context: {tab, tickerData,...} }
+  → AiController → thread virtuale
+  → AnthropicService.streamChat()
+    → buildSystemPrompt(context) — prompt specializzato per tab
+    → WebClient.post() → anthropic/v1/messages con stream:true
+    → per ogni event.type="content_block_delta": emitter.send({"text":"..."})
+    → [DONE] → emitter.complete()
+  → frontend: reader loop → appendToMessage per chunk → blinking cursor
 ```
 
 ---
 
 ## Stack tecnologico
 
-### Backend
+### Backend (Java 21 / Spring Boot 3.3)
 
 | Libreria | Versione | Ruolo |
 |----------|----------|-------|
-| `express` | ^4.19 | HTTP server + routing |
-| `yahoo-finance2` | **^2.9.0** | Dati di mercato, ricerca ticker (pinned: v2.14+ è ESM-only) |
-| `better-sqlite3` | ^9.4.3 | Persistenza SQLite sincrona con WAL mode |
-| `@anthropic-ai/sdk` | ^0.27 | Claude API con streaming SSE |
-| `node-cache` | ^5.1 | Cache in-memory multi-tier |
-| `axios` | ^1.7.2 | Client HTTP per NASDAQ API |
-| `zod` | ^3.23.8 | Validazione runtime degli input API |
-| `helmet` | ^7.1 | Security headers HTTP |
-| `express-rate-limit` | ^7.4 | Rate limiting (100/min globale, 20/min AI) |
-| `cors` | ^2.8 | CORS headers |
-| `dotenv` | ^16.4 | Variabili d'ambiente |
-| `tsx` | ^4.15 | Esecuzione TypeScript in dev (watch mode) |
+| `spring-boot-starter-web` | 3.3.5 | REST API, MVC, Tomcat embedded |
+| `spring-boot-starter-webflux` | 3.3.5 | WebClient (outbound HTTP), SSE |
+| `spring-boot-starter-data-jpa` | 3.3.5 | ORM con Hibernate 6.5 |
+| `spring-boot-starter-validation` | 3.3.5 | Bean Validation (`@Valid`, `@NotBlank`, ecc.) |
+| `spring-boot-starter-cache` | 3.3.5 | Astrazione cache |
+| `spring-boot-starter-actuator` | 3.3.5 | Health check, metriche |
+| `postgresql` | runtime | Driver JDBC PostgreSQL |
+| `flyway-core` | incluso in Boot | Migrazioni schema versionato |
+| `caffeine` | incluso in Boot | Cache in-memory LRU con TTL |
+| `resilience4j-spring-boot3` | 2.2.0 | Retry + Circuit Breaker annotazionali |
+| `springdoc-openapi-starter-webmvc-ui` | 2.6.0 | Swagger UI automatico |
+| `lombok` | incluso in Boot | Riduzione boilerplate (getter/setter) |
+| `junit-jupiter` | incluso in Boot | Test unitari e di integrazione |
+| `testcontainers` | 1.20.3 | PostgreSQL reale nei test CI |
+| `jacoco-maven-plugin` | 0.8.12 | Report e soglia di copertura (70%) |
 
-> **Nota sul pinning di yahoo-finance2**: Le versioni ≥ 2.14 sono ESM-only e non funzionano con `"module": "CommonJS"` in tsconfig. La versione 2.9.x è l'ultima con supporto CommonJS completo.
-
-### Frontend
+### Frontend (React 18 / Vite / TypeScript)
 
 | Libreria | Versione | Ruolo |
 |----------|----------|-------|
 | `react` + `react-dom` | ^18.3 | UI framework |
 | `vite` | ^5.3 | Build tool + dev server con proxy |
-| `@tanstack/react-query` | ^5.45 | Data fetching, mutations CRUD, caching, refetch automatico |
-| `zustand` | ^4.5 | State management per UI/chat (tab attivo, tema, chat history) |
+| `@tanstack/react-query` | ^5.45 | Data fetching, mutations CRUD, caching |
+| `zustand` | ^4.5 | State UI/chat (tab attivo, tema) |
 | `recharts` | ^2.12 | Grafici LineChart con SMA overlay |
-| `framer-motion` | ^11.3 | Animazioni (PandaLoader, barre animate, scenari) |
-| `axios` | ^1.7 | Client HTTP |
+| `framer-motion` | ^11.3 | Animazioni |
 | `typescript` | ^5.4 | Type checking strict |
 
 ---
@@ -197,97 +194,122 @@ useChat.sendMessage(text, context)
 
 ```
 finai/
-├── package.json              # Root: script dev/build/install:all con concurrently
+├── package.json                # Root: script dev/build/test con concurrently
+├── docker-compose.yml          # PostgreSQL + PgAdmin per sviluppo locale
 │
-├── backend/
-│   ├── package.json
-│   ├── tsconfig.json         # CommonJS + moduleResolution: node + strict: false
+├── backend/                    # Java 21 / Spring Boot 3.3
+│   ├── pom.xml                 # Maven: dipendenze, JaCoCo, Surefire
 │   ├── .env.example
 │   └── src/
-│       ├── index.ts          # Express app: helmet, cors, rate limit, routes, DB init
-│       ├── middleware/
-│       │   ├── rateLimit.ts  # apiLimiter (100/min), aiLimiter (20/min)
-│       │   └── errorHandler.ts
-│       ├── routes/
-│       │   ├── quote.ts      # GET /:ticker  e  GET /:ticker/full
-│       │   ├── batch.ts      # GET /?tickers=... (chunked parallelo)
-│       │   ├── history.ts    # GET /:ticker?range=1y
-│       │   ├── indices.ts    # GET / → 9 indici globali
-│       │   ├── search.ts     # GET /?q=... → autocomplete ticker/nome
-│       │   ├── portfolio.ts  # CRUD portafoglio + POST /refresh prezzi live
-│       │   ├── alerts.ts     # CRUD alert + POST /:id/fire
-│       │   ├── ipo.ts        # GET upcoming/recent + CRUD watchlist
-│       │   └── ai.ts         # POST /chat → SSE streaming
-│       └── services/
-│           ├── database.ts       # SQLite setup (WAL), 3 tabelle, 3 service objects
-│           ├── retry.ts          # withRetry(3 tentativi, backoff 2s) + CircuitBreaker
-│           ├── yahooFinance.ts   # fetchQuote/Batch/History/Indices + search + IPO fetchers
-│           ├── indicators.ts     # calcRSI, calcSMA, calcVolatility, calcMomentum, calcBullScore
-│           ├── anthropic.ts      # streamChatResponse + buildSystemPrompt
-│           └── cache.ts          # 5 istanze NodeCache con TTL differenziati
+│       ├── main/
+│       │   ├── java/com/finai/
+│       │   │   ├── FinaiApplication.java
+│       │   │   ├── config/
+│       │   │   │   ├── CacheConfig.java          # Caffeine multi-tier
+│       │   │   │   ├── OpenApiConfig.java         # Swagger UI
+│       │   │   │   ├── RateLimitInterceptor.java  # Token bucket per IP
+│       │   │   │   ├── WebClientConfig.java       # WebClient Yahoo/NASDAQ/Anthropic
+│       │   │   │   └── WebMvcConfig.java          # CORS + registrazione interceptor
+│       │   │   ├── controller/
+│       │   │   │   ├── QuoteController.java       # GET /:ticker[/full]
+│       │   │   │   ├── BatchController.java       # GET /?tickers=...
+│       │   │   │   ├── HistoryController.java     # GET /:ticker?range=1y
+│       │   │   │   ├── IndicesController.java     # GET / → 9 indici
+│       │   │   │   ├── SearchController.java      # GET /?q= autocomplete
+│       │   │   │   ├── PortfolioController.java   # CRUD + POST /refresh
+│       │   │   │   ├── AlertController.java       # CRUD + POST /:id/fire
+│       │   │   │   ├── IpoController.java         # upcoming/recent + watchlist CRUD
+│       │   │   │   ├── AiController.java          # POST /chat SSE (thread virtuali)
+│       │   │   │   └── HealthController.java
+│       │   │   ├── domain/
+│       │   │   │   ├── entity/
+│       │   │   │   │   ├── PortfolioItem.java     # @Entity JPA
+│       │   │   │   │   ├── Alert.java             # @Entity JPA con isActive()
+│       │   │   │   │   └── IpoWatchlistItem.java  # @Entity + lockupRemainingDays()
+│       │   │   │   └── enums/
+│       │   │   │       └── AlertType.java         # ABOVE|BELOW|CHANGE_UP|CHANGE_DOWN
+│       │   │   ├── dto/                           # Java records immutabili
+│       │   │   │   ├── quote/    QuoteDto, FullQuoteDto, HistoryPoint
+│       │   │   │   ├── portfolio/ AddPortfolioItemRequest, PortfolioItemDto
+│       │   │   │   ├── alert/    AddAlertRequest, FireAlertRequest, AlertDto, AlertsResponse
+│       │   │   │   ├── ipo/      UpcomingIpoDto, RecentIpoDto, IpoWatchlistItemDto,
+│       │   │   │   │             AddIpoWatchlistRequest, UpdateIpoWatchlistRequest
+│       │   │   │   ├── search/   SearchResultDto
+│       │   │   │   └── ai/       ChatRequest, ChatMessage
+│       │   │   ├── exception/
+│       │   │   │   ├── FinaiException.java        # Eccezione con statusCode HTTP
+│       │   │   │   └── GlobalExceptionHandler.java # @RestControllerAdvice → JSON uniforme
+│       │   │   ├── repository/
+│       │   │   │   ├── PortfolioRepository.java   # JPA + @Modifying per update bulk
+│       │   │   │   ├── AlertRepository.java
+│       │   │   │   └── IpoWatchlistRepository.java
+│       │   │   └── service/
+│       │   │       ├── YahooFinanceService.java   # @Retry + @CircuitBreaker + @Cacheable
+│       │   │       ├── NasdaqService.java         # @Retry + @CircuitBreaker + @Cacheable
+│       │   │       ├── AnthropicService.java      # SSE streaming + buildSystemPrompt()
+│       │   │       ├── IndicatorsService.java     # RSI, SMA, volatilità, momentum, BullScore
+│       │   │       ├── PortfolioService.java      # CRUD + refresh bulk prezzi
+│       │   │       ├── AlertService.java          # CRUD + fire idempotente
+│       │   │       └── IpoService.java            # calendario + watchlist CRUD
+│       │   └── resources/
+│       │       ├── application.yml               # Config principale
+│       │       ├── application-test.yml          # Override per test (PostgreSQL test DB)
+│       │       └── db/migration/
+│       │           ├── V1__create_tables.sql     # Schema iniziale (3 tabelle)
+│       │           ├── V2__add_indexes.sql       # Indici per query frequenti
+│       │           └── V3__fix_alert_type_constraint.sql
+│       └── test/
+│           └── java/com/finai/
+│               ├── service/
+│               │   ├── IndicatorsServiceTest.java   # 24 test unit (RSI, SMA, vol, score)
+│               │   ├── PortfolioServiceTest.java    # 7 test unit (Mockito)
+│               │   ├── AlertServiceTest.java        # 7 test unit (Mockito)
+│               │   ├── IpoServiceTest.java          # 6 test unit (Mockito)
+│               │   └── AnthropicServiceTest.java    # 6 test unit (system prompt)
+│               ├── controller/
+│               │   ├── PortfolioControllerTest.java # 7 test funzionali (MockMvc)
+│               │   └── AlertControllerTest.java     # 6 test funzionali (MockMvc)
+│               └── integration/
+│                   ├── PortfolioIntegrationTest.java # 7 test integrazione (PostgreSQL)
+│                   ├── AlertIntegrationTest.java     # 6 test integrazione (PostgreSQL)
+│                   └── IpoIntegrationTest.java       # 5 test integrazione (PostgreSQL)
 │
 └── frontend/
     ├── package.json
-    ├── tsconfig.json         # bundler + noEmit + strict: true
-    ├── vite.config.ts        # proxy /api → :3001, alias @/ → src/
-    ├── index.html            # font Google: Syne, Instrument Serif, JetBrains Mono
+    ├── tsconfig.json             # bundler + noEmit + strict
+    ├── vite.config.ts            # proxy /api → :3001, alias @/ → src/
+    ├── index.html
     └── src/
-        ├── main.tsx          # tema dark/light da localStorage prima del mount
-        ├── App.tsx           # QueryClientProvider + lazy-loaded tab router (9 tab)
-        ├── styles.css        # CSS custom properties: dark (default) + light theme
-        │
+        ├── main.tsx
+        ├── App.tsx               # QueryClientProvider + lazy tab router (9 tab)
+        ├── styles.css
         ├── lib/
-        │   ├── constants.ts  # STOCK_UNIVERSE (160+ ticker per area geografica),
-        │   │                 # ETF_UNIVERSE, INDICES, PORTFOLIO_TEMPLATES
-        │   ├── formatters.ts # formatPrice, formatPct, formatLargeNumber (locale it-IT)
-        │   └── indicators.ts # calcRSI/SMA/EMA/MACD/Bollinger/BullScore/LongTermScore
-        │
+        │   ├── constants.ts      # STOCK_UNIVERSE (160+ ticker geografici), ETF, INDICES
+        │   ├── formatters.ts
+        │   └── indicators.ts     # RSI/SMA/EMA/MACD/Bollinger (lato client, per grafici)
         ├── store/
-        │   ├── useAppStore.ts    # activeTab (9 tab), theme toggle, pendingOps loader
-        │   └── useChatStore.ts   # histories per tab-key, streaming append
-        │
+        │   ├── useAppStore.ts
+        │   └── useChatStore.ts
         ├── hooks/
-        │   ├── useQuote.ts         # useQuote + useFullQuote via React Query
-        │   ├── useHistory.ts       # useHistory con staleTime 4h
-        │   ├── useMarketBatch.ts   # useIndices, useStockBatch, useEtfBatch, useMarketData
-        │   ├── useChat.ts          # SSE reader loop, appendToMessage per token
-        │   ├── useAlerts.ts        # polling 60s, checkAlert, Notification API
-        │   ├── usePortfolio.ts     # React Query CRUD portfolio (add/remove/refresh)
-        │   ├── useAlertsBackend.ts # React Query CRUD alert + fire mutation
-        │   ├── useSearch.ts        # ricerca ticker debounced 300ms + AbortController
-        │   └── useIPO.ts           # useUpcomingIPOs, useRecentIPOs, useIPOWatchlist
-        │
+        │   ├── useQuote.ts       useFullQuote.ts
+        │   ├── useHistory.ts
+        │   ├── useMarketBatch.ts
+        │   ├── useChat.ts
+        │   ├── useAlerts.ts
+        │   ├── usePortfolio.ts   # React Query CRUD portafoglio
+        │   ├── useAlertsBackend.ts
+        │   ├── useSearch.ts      # debounce 300ms + AbortController
+        │   └── useIPO.ts
         ├── components/
-        │   ├── layout/
-        │   │   ├── Header.tsx       # Logo panda SVG + theme toggle
-        │   │   ├── NavTabs.tsx      # 9 tab con highlight attivo
-        │   │   └── PandaLoader.tsx  # Overlay animato (bounce + shimmer) su pendingOps > 0
-        │   ├── common/
-        │   │   └── SearchInput.tsx  # Autocomplete ticker: debounce, dropdown con tipo/exchange
-        │   ├── market/
-        │   │   ├── IndexBar.tsx     # Pill scrollabile con 9 indici (refresh 60s)
-        │   │   ├── SentimentMeter.tsx  # Barra animata + emoji sentiment
-        │   │   ├── MarketGrid.tsx   # 4 colonne: top/worst azioni+ETF, toggle oggi/YTD
-        │   │   └── MarketRow.tsx    # Riga con ticker, prezzo, %, barra range 52W
-        │   ├── analyze/
-        │   │   ├── StockHero.tsx    # Header ticker + 8 metriche tecniche colorate
-        │   │   ├── PriceChart.tsx   # LineChart recharts + SMA20/50 dashed overlay
-        │   │   ├── SignalBadge.tsx  # BUY/SELL/HOLD badge con motivazione
-        │   │   └── PredictionCard.tsx  # Direzione + probabilità + 3 scenari 30gg
-        │   └── chat/
-        │       ├── ChatPanel.tsx    # Chat UI con quick actions, textarea, send
-        │       └── ChatMessage.tsx  # Render markdown leggero + blinking cursor
-        │
+        │   ├── layout/   Header, NavTabs (9 tab), PandaLoader
+        │   ├── common/   SearchInput (autocomplete)
+        │   ├── market/   IndexBar, SentimentMeter, MarketGrid, MarketRow
+        │   ├── analyze/  StockHero, PriceChart, SignalBadge, PredictionCard
+        │   └── chat/     ChatPanel, ChatMessage
         └── pages/
-            ├── MarketPage.tsx
-            ├── AnalyzePage.tsx    # usa SearchInput per autocomplete
-            ├── ComparePage.tsx
-            ├── AlertsPage.tsx     # dati da SQLite via useAlertsBackend
-            ├── LongTermPage.tsx
-            ├── PortfolioPage.tsx  # dati da SQLite via usePortfolio
-            ├── IPOPage.tsx        # 3 sub-tab: Upcoming / Recenti / Watchlist
-            ├── SuggestedPage.tsx
-            └── GuidePage.tsx
+            ├── MarketPage, AnalyzePage, ComparePage, AlertsPage
+            ├── LongTermPage, PortfolioPage, IPOPage
+            ├── SuggestedPage, GuidePage
 ```
 
 ---
@@ -296,36 +318,43 @@ finai/
 
 ### Prerequisiti
 
-- **Node.js** ≥ 18.x
-- **npm** ≥ 9.x
-- Una **API key Anthropic** (per la funzione AI chat) — ottienila su [console.anthropic.com](https://console.anthropic.com)
+| Tool | Versione minima | Note |
+|------|-----------------|------|
+| **Java JDK** | 21 | OpenJDK o Oracle JDK 21 LTS |
+| **Apache Maven** | 3.9 | `mvn -version` |
+| **Node.js** | 18 | `node -v` |
+| **PostgreSQL** | 16 | oppure Docker con `docker compose up -d postgres` |
+| **Docker** | 24+ | solo per `docker compose`, opzionale se PostgreSQL nativo |
+| **API key Anthropic** | — | Obbligatoria per la chat AI |
 
 ### 1. Clona il repository
 
 ```bash
 git clone https://github.com/giole89/TestClaude.git
 cd TestClaude/finai
+git checkout claude/finai-web-app-I6tE2
 ```
 
-> Il progetto si trova sul branch `claude/finai-web-app-I6tE2`. Se hai clonato `main`, fai:
-> ```bash
-> git checkout claude/finai-web-app-I6tE2
-> ```
+### 2. Avvia il database PostgreSQL
 
-### 2. Installa tutte le dipendenze
+#### Con Docker Compose (consigliato)
 
 ```bash
-npm run install:all
+# Avvia solo PostgreSQL in background
+npm run db:up
+# oppure direttamente:
+docker compose up -d postgres
 ```
 
-Questo script esegue in sequenza:
-- `npm install` nella root (installa `concurrently`)
-- `cd backend && npm install`
-- `cd frontend && npm install`
+#### Con PostgreSQL nativo
 
-> `better-sqlite3` compila un modulo nativo C++ durante `npm install`. Assicurati di avere `build-essential` (Linux) o Xcode Command Line Tools (macOS) installati.
+```bash
+# Crea il database e l'utente
+sudo -u postgres psql -c "CREATE USER finai WITH PASSWORD 'finai';"
+sudo -u postgres psql -c "CREATE DATABASE finai OWNER finai;"
+```
 
-### 3. Configura le variabili d'ambiente del backend
+### 3. Configura le variabili d'ambiente
 
 ```bash
 cp backend/.env.example backend/.env
@@ -334,55 +363,68 @@ cp backend/.env.example backend/.env
 Modifica `backend/.env`:
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-api03-...    # La tua chiave Anthropic (obbligatoria)
+ANTHROPIC_API_KEY=sk-ant-api03-...    # Obbligatoria
 PORT=3001
-NODE_ENV=development
-DB_PATH=./finai.db                    # Path del database SQLite
-CACHE_TTL_QUOTES=60                   # TTL cache quote in secondi
-CACHE_TTL_HISTORY=14400               # TTL cache storico (4 ore)
-AI_MODEL=claude-haiku-4-5-20251001   # Modello Claude da usare
+DB_URL=jdbc:postgresql://localhost:5432/finai
+DB_USER=finai
+DB_PASSWORD=finai
+AI_MODEL=claude-haiku-4-5-20251001
 ```
 
-Il database SQLite viene creato automaticamente al primo avvio: non è necessario eseguire migrazioni manualmente.
+> Flyway applica automaticamente le migrazioni SQL al primo avvio. Non serve nessun setup manuale dello schema.
 
-### 4. Avvia l'applicazione
+### 4. Installa le dipendenze frontend
+
+```bash
+npm run install:all
+# oppure solo:
+cd frontend && npm install
+```
+
+Il backend Java usa Maven e non richiede `npm install`.
+
+### 5. Avvia l'applicazione
 
 #### Avvio simultaneo (consigliato)
 
-Dalla root della cartella `finai/`:
-
 ```bash
+# Dalla root finai/
 npm run dev
 ```
 
-Avvia in parallelo backend (porta **3001**) e frontend (porta **5173**) tramite `concurrently`.
+Avvia in parallelo:
+- **Backend**: `mvn spring-boot:run` sulla porta **3001**
+- **Frontend**: `vite` sulla porta **5173**
 
 Output atteso:
 ```
-[backend]  FINAI backend avviato su http://localhost:3001
-[backend]  Database SQLite inizializzato: ./finai.db
+[backend]  Tomcat started on port 3001 (http)
+[backend]  Started FinaiApplication in 4.2 seconds
+[backend]  Flyway: Successfully applied 3 migrations to schema "public"
 [frontend] Local: http://localhost:5173
 ```
 
 #### Avvio separato
 
 ```bash
-# Terminale 1 — Backend
+# Terminale 1 — Backend Java
 cd backend
-npm run dev
+mvn spring-boot:run
 
 # Terminale 2 — Frontend
 cd frontend
 npm run dev
 ```
 
-### 5. Apri nel browser
+### 6. Apri nel browser
 
 ```
-http://localhost:5173
+http://localhost:5173        # App principale
+http://localhost:3001/swagger-ui.html    # Swagger UI (documentazione API)
+http://localhost:3001/health             # Health check
 ```
 
-Il dev server Vite fa da proxy per tutte le richieste `/api/*` verso `http://localhost:3001`: nessun problema CORS in sviluppo.
+Il dev server Vite fa da proxy per tutte le richieste `/api/*` verso il backend.
 
 ### Build di produzione
 
@@ -390,30 +432,29 @@ Il dev server Vite fa da proxy per tutte le richieste `/api/*` verso `http://loc
 npm run build
 ```
 
-- Il backend viene compilato da TypeScript in `backend/dist/`
-- Il frontend viene bundlato in `frontend/dist/` (18 chunk ottimizzati)
+- Backend: `mvn package -DskipTests` → `backend/target/finai-backend-1.0.0.jar`
+- Frontend: `vite build` → `frontend/dist/`
 
 Per avviare in produzione:
 
 ```bash
-# Avvia il backend
-node backend/dist/index.js
+# Backend (jar eseguibile, include Tomcat embedded)
+java -jar backend/target/finai-backend-1.0.0.jar
 
-# Servi il frontend con nginx, serve, o simili
+# Frontend (servire con nginx, Caddy, serve, ecc.)
 npx serve frontend/dist -p 80
 ```
-
-> In produzione imposta `VITE_API_BASE_URL` nel frontend per puntare all'URL del backend remoto.
 
 ### Risoluzione problemi comuni
 
 | Problema | Causa | Soluzione |
 |----------|-------|-----------|
-| `Cannot find module 'better-sqlite3'` | Modulo nativo non compilato | `cd backend && npm rebuild better-sqlite3` |
-| `Error: ANTHROPIC_API_KEY not set` | File `.env` mancante | Copia `.env.example` e inserisci la chiave |
-| Porta 3001 già in uso | Altro processo attivo | Cambia `PORT` nel `.env` o termina il processo |
-| IPO upcoming vuoti | NASDAQ API temporaneamente irraggiungibile | Riprova: il circuit breaker si resetta dopo 60s |
-| Dati portafoglio spariti | Path DB diverso tra avvii | Verifica che `DB_PATH` sia consistente nel `.env` |
+| `Connection refused: localhost:5432` | PostgreSQL non avviato | `npm run db:up` o `systemctl start postgresql` |
+| `FlywayException: Schema not empty` | DB esistente con schema diverso | In dev: `DROP DATABASE finai; CREATE DATABASE finai OWNER finai;` |
+| `ANTHROPIC_API_KEY not set` | `.env` mancante | Copia `.env.example` e inserisci la chiave |
+| `Port 3001 already in use` | Processo in conflitto | Cambia `PORT` nel `.env` |
+| IPO upcoming vuoti | NASDAQ API irraggiungibile | Normale: circuit breaker attivo, ritenta dopo 60s |
+| Build Maven lenta (prima volta) | Download dipendenze Maven | Successivi avvii: cache locale Maven in `~/.m2` |
 
 ---
 
@@ -421,438 +462,323 @@ npx serve frontend/dist -p 80
 
 ### Backend (`backend/.env`)
 
-| Variabile | Default | Obbligatoria | Descrizione |
-|-----------|---------|:------------:|-------------|
+| Variabile | Default | Obbl. | Descrizione |
+|-----------|---------|:-----:|-------------|
 | `ANTHROPIC_API_KEY` | — | ✅ | Chiave API Anthropic per la chat AI |
-| `PORT` | `3001` | | Porta del server Express |
-| `NODE_ENV` | `development` | | Ambiente (`development` \| `production`) |
-| `DB_PATH` | `./finai.db` | | Path del file SQLite (relativo alla dir backend) |
-| `CACHE_TTL_QUOTES` | `60` | | TTL cache quote in secondi |
-| `CACHE_TTL_HISTORY` | `14400` | | TTL cache storico (4 ore = 14400s) |
-| `AI_MODEL` | `claude-haiku-4-5-20251001` | | Modello Claude per le risposte AI |
+| `PORT` | `3001` | | Porta del server Tomcat embedded |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/finai` | | URL JDBC PostgreSQL |
+| `DB_USER` | `finai` | | Username database |
+| `DB_PASSWORD` | `finai` | | Password database |
+| `AI_MODEL` | `claude-haiku-4-5-20251001` | | Modello Claude (haiku/sonnet/opus) |
 
 ### Frontend (`frontend/.env`)
 
 | Variabile | Default | Descrizione |
 |-----------|---------|-------------|
-| `VITE_API_BASE_URL` | `http://localhost:3001` | URL base del backend (in prod punta al server remoto) |
+| `VITE_API_BASE_URL` | `http://localhost:3001` | URL backend (in produzione punta al server remoto) |
+
+### Test (`application-test.yml`)
+
+| Variabile | Default | Descrizione |
+|-----------|---------|-------------|
+| `TEST_DB_URL` | `jdbc:postgresql://127.0.0.1:5432/finai_test` | DB dedicato per i test |
+| `TEST_DB_USER` | `finai` | Utente DB di test |
+| `TEST_DB_PASSWORD` | `finai` | Password DB di test |
 
 ---
 
 ## API Backend
 
-Tutti gli endpoint rispondono in JSON. Rate limiter globale: **100 req/min** per IP. AI endpoint: **20 req/min**.
+Tutti gli endpoint sono documentati con Swagger UI su `/swagger-ui.html`. Rate limiter: **100 req/min** per IP, **20 req/min** per `/api/ai/*`.
 
 ### Quote e mercato
 
-#### `GET /api/quote/:ticker`
+| Endpoint | Descrizione | Cache |
+|----------|-------------|-------|
+| `GET /api/quote/:ticker` | Quote base | 60s |
+| `GET /api/quote/:ticker/full` | Quote + indicatori + storia 1y | 60s |
+| `GET /api/batch?tickers=A,B,C` | Quote multiple in parallelo | 120s |
+| `GET /api/history/:ticker?range=1y` | Storico OHLCV (`1m/3m/6m/1y`) | 4h |
+| `GET /api/indices` | 9 indici globali (S&P500, NDX, VIX…) | 120s |
+| `GET /api/search?q=apple` | Autocomplete ticker/nome | 30s |
 
-Quote base di un titolo.
+### Portfolio
 
-```json
-{
-  "ticker": "AAPL",
-  "name": "Apple Inc.",
-  "price": 189.84,
-  "dayChange": 1.23,
-  "dayChangePct": 0.65,
-  "high52w": 199.62,
-  "low52w": 143.90,
-  "volume": 54321000,
-  "marketCap": 2950000000000,
-  "pe": 29.4,
-  "currency": "USD",
-  "exchange": "NasdaqGS",
-  "rangePosition": 72,
-  "timestamp": 1700000000000
-}
-```
-
-#### `GET /api/quote/:ticker/full`
-
-Quote completa con indicatori tecnici e storico 1 anno. Include tutto il precedente, più:
-
-```json
-{
-  "rsi": 58,
-  "sma20": 187.40,
-  "sma50": 182.10,
-  "sma200": 173.55,
-  "volatility": 24,
-  "momentum30": 3.2,
-  "bullScore": 85,
-  "history": [
-    { "date": "2024-01-02", "open": 185.0, "high": 186.5, "low": 184.2, "close": 185.9, "volume": 48000000 }
-  ]
-}
-```
-
-#### `GET /api/batch?tickers=AAPL,MSFT,NVDA`
-
-Quote base di più ticker in parallelo. Chunk da 10.
-
-#### `GET /api/history/:ticker?range=1y`
-
-Storico prezzi OHLCV. Parametro `range`: `1m` | `3m` | `6m` | `1y`.
-
-#### `GET /api/indices`
-
-Quote dei 9 indici/asset di riferimento: `^GSPC`, `^NDX`, `^DJI`, `^STOXX50E`, `FTSEMIB.MI`, `^VIX`, `EURUSD=X`, `GC=F`, `CL=F`.
-
-#### `GET /api/search?q=apple`
-
-Ricerca autocomplete ticker e nomi. Utilizza `yahoo-finance2.search()`.
-
-```json
-[
-  { "ticker": "AAPL", "name": "Apple Inc.", "exchange": "NasdaqGS", "type": "EQUITY" },
-  { "ticker": "AAPL.BA", "name": "Apple Inc.", "exchange": "Buenos Aires", "type": "EQUITY" }
-]
-```
-
-Cache: 30s. Minimo 2 caratteri di query.
-
----
-
-### Portafoglio
-
-#### `GET /api/portfolio`
-
-Restituisce tutte le posizioni salvate.
-
-```json
-[
-  {
-    "id": "abc123",
-    "ticker": "AAPL",
-    "name": "Apple Inc.",
-    "qty": 10,
-    "loadPrice": 175.00,
-    "currentPrice": 189.84,
-    "currency": "USD",
-    "createdAt": "2024-01-15T10:30:00.000Z"
-  }
-]
-```
-
-#### `POST /api/portfolio`
-
-Aggiunge una posizione. Body (validato con Zod):
-
-```json
-{
-  "id": "abc123",
-  "ticker": "AAPL",
-  "name": "Apple Inc.",
-  "qty": 10,
-  "loadPrice": 175.00,
-  "currency": "USD"
-}
-```
-
-#### `DELETE /api/portfolio/:id`
-
-Rimuove una posizione per ID.
-
-#### `POST /api/portfolio/refresh`
-
-Aggiorna tutti i `currentPrice` delle posizioni via Yahoo Finance e restituisce il portafoglio aggiornato.
-
----
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/portfolio` | Lista posizioni |
+| `POST /api/portfolio` | Aggiunge posizione (body: `{id, ticker, name, qty, loadPrice, currency}`) |
+| `DELETE /api/portfolio/:id` | Rimuove posizione |
+| `POST /api/portfolio/refresh` | Aggiorna tutti i prezzi correnti da Yahoo Finance |
 
 ### Alert
 
-#### `GET /api/alerts`
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/alerts` | Risposta `{active: [], history: []}` |
+| `POST /api/alerts` | Crea alert (body: `{id, ticker, type, value}`) |
+| `DELETE /api/alerts/:id` | Elimina alert |
+| `POST /api/alerts/:id/fire` | Segna scattato (body: `{price}`) — idempotente |
 
-```json
-{
-  "active": [
-    { "id": "x1", "ticker": "AAPL", "type": "above", "value": 200, "createdAt": "..." }
-  ],
-  "history": [
-    { "id": "x0", "ticker": "MSFT", "type": "below", "value": 300, "firedAt": "...", "firedPrice": 295.0 }
-  ]
-}
-```
-
-Tipi supportati: `above` | `below` | `change_up` | `change_down`.
-
-#### `POST /api/alerts`
-
-Body: `{ "id", "ticker", "type", "value" }`. Il ticker viene normalizzato in uppercase.
-
-#### `DELETE /api/alerts/:id`
-
-Rimuove un alert attivo.
-
-#### `POST /api/alerts/:id/fire`
-
-Segna un alert come scattato, sposta in history con prezzo e timestamp.
-
-```json
-{ "price": 201.50 }
-```
-
----
+Tipi: `above` | `below` | `change_up` | `change_down`
 
 ### IPO
 
-#### `GET /api/ipo/upcoming`
-
-Prossime IPO dal NASDAQ calendar API. Cache 1h.
-
-```json
-[
-  {
-    "id": "ipo_xyz",
-    "company": "Acme Corp",
-    "ticker": "ACME",
-    "expectedDate": "2024-03-15",
-    "priceRange": "$18-$22",
-    "shares": "10M",
-    "exchange": "NASDAQ",
-    "sector": "Technology"
-  }
-]
-```
-
-#### `GET /api/ipo/recent`
-
-IPO recenti degli ultimi 30 giorni con prezzo corrente e performance rispetto al prezzo IPO.
-
-#### `GET /api/ipo/watchlist`
-
-Watchlist personale IPO salvata su SQLite.
-
-#### `POST /api/ipo/watchlist`
-
-Aggiunge alla watchlist. Body (validato con Zod):
-
-```json
-{
-  "id": "w1",
-  "companyName": "Acme Corp",
-  "ticker": "ACME",
-  "expectedDate": "2024-03-15",
-  "exchange": "NASDAQ",
-  "sector": "Technology",
-  "lockupDays": 180,
-  "ipoPrice": 20.0,
-  "notes": "Interessante per il settore AI"
-}
-```
-
-#### `PATCH /api/ipo/watchlist/:id`
-
-Aggiorna campi parziali (es. `notes`, `ipoPrice`).
-
-#### `DELETE /api/ipo/watchlist/:id`
-
-Rimuove dalla watchlist.
-
----
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/ipo/upcoming` | Prossime IPO (NASDAQ calendar, cache 1h) |
+| `GET /api/ipo/recent` | IPO recenti con performance |
+| `GET /api/ipo/watchlist` | Watchlist personale |
+| `POST /api/ipo/watchlist` | Aggiunge a watchlist |
+| `PATCH /api/ipo/watchlist/:id` | Aggiornamento parziale (patch semantics) |
+| `DELETE /api/ipo/watchlist/:id` | Rimuove dalla watchlist |
 
 ### AI Chat
 
-#### `POST /api/ai/chat`
+```
+POST /api/ai/chat
+Content-Type: application/json
 
-Risposta AI in streaming SSE. Rate limit: 20 req/min.
-
-**Request body:**
-```json
 {
-  "messages": [
-    { "role": "user", "content": "Dimmi tutto su AAPL" }
-  ],
+  "messages": [{"role": "user", "content": "Analizza AAPL"}],
   "context": {
     "tab": "analyze",
     "ticker": "AAPL",
-    "tickerData": { "price": 189.84, "rsi": 58, "bullScore": 85 }
+    "tickerData": {"price": 190.0, "rsi": 58, "bullScore": 85}
   }
 }
 ```
 
-**Response (SSE stream):**
+Risposta SSE:
 ```
-data: {"text":"Apple Inc. è attualmente..."}
-data: {"text":" in una fase rialzista..."}
+data: {"text":"Apple Inc. è in una fase..."}
+data: {"text":" rialzista di medio termine."}
 data: [DONE]
 ```
 
-Il campo `context.tab` determina il system prompt specializzato: `analyze`, `compare`, `longterm`, `portfolio`, `suggested`, `market`, `ipo`.
-
-#### `GET /health`
-
-Health check: `{ "status": "ok", "timestamp": 1700000000000 }`
+Tab supportate nel context: `analyze` | `compare` | `portfolio` | `longterm` | `ipo` | `market`
 
 ---
 
-## Persistenza dati — SQLite
+## Persistenza dati — PostgreSQL
 
-Portfolio, alert e watchlist IPO sono persistiti su un database **SQLite** tramite `better-sqlite3` (sincrono, WAL mode per massima affidabilità e performance in scrittura concorrente).
+Portfolio, alert e watchlist IPO sono persistiti su **PostgreSQL 16** via Spring Data JPA.
+Le migrazioni sono gestite da **Flyway** con versioning incrementale.
 
 ### Schema
 
 ```sql
+-- portfolio_items: posizioni del portafoglio con prezzo di carico e corrente
 CREATE TABLE portfolio_items (
-  id          TEXT PRIMARY KEY,
-  ticker      TEXT NOT NULL,
-  name        TEXT NOT NULL,
-  qty         REAL NOT NULL,
-  load_price  REAL NOT NULL,
-  current_price REAL,
-  currency    TEXT NOT NULL DEFAULT 'USD',
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    id             VARCHAR(36)      PRIMARY KEY,   -- UUID v4 generato dal frontend
+    ticker         VARCHAR(20)      NOT NULL,
+    name           TEXT             NOT NULL,
+    qty            NUMERIC(18,6)    NOT NULL CHECK (qty > 0),
+    load_price     NUMERIC(18,4)    NOT NULL CHECK (load_price > 0),
+    current_price  NUMERIC(18,4),                 -- aggiornato da /api/portfolio/refresh
+    currency       VARCHAR(10)      NOT NULL DEFAULT 'USD',
+    created_at     TIMESTAMPTZ      NOT NULL DEFAULT NOW()
 );
 
+-- alerts: alert sui prezzi con ciclo di vita active → history
 CREATE TABLE alerts (
-  id          TEXT PRIMARY KEY,
-  ticker      TEXT NOT NULL,
-  type        TEXT NOT NULL,   -- above | below | change_up | change_down
-  value       REAL NOT NULL,
-  fired_at    TEXT,            -- NULL finché non scatta
-  fired_price REAL,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    id           VARCHAR(36)    PRIMARY KEY,
+    ticker       VARCHAR(20)    NOT NULL,
+    type         VARCHAR(20)    NOT NULL              -- ABOVE|BELOW|CHANGE_UP|CHANGE_DOWN
+                     CHECK (type IN ('ABOVE','BELOW','CHANGE_UP','CHANGE_DOWN')),
+    value        NUMERIC(18,4)  NOT NULL CHECK (value > 0),
+    fired_at     TIMESTAMPTZ,                         -- NULL = alert attivo
+    fired_price  NUMERIC(18,4),
+    created_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
 
+-- ipo_watchlist: IPO monitorate con calcolo lock-up
 CREATE TABLE ipo_watchlist (
-  id            TEXT PRIMARY KEY,
-  ticker        TEXT,
-  company_name  TEXT NOT NULL,
-  expected_date TEXT,
-  exchange      TEXT,
-  sector        TEXT,
-  lockup_days   INTEGER NOT NULL DEFAULT 180,
-  ipo_price     REAL,
-  ipo_date      TEXT,          -- data effettiva quotazione (aggiornata con PATCH)
-  notes         TEXT,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    id             VARCHAR(36)    PRIMARY KEY,
+    ticker         VARCHAR(20),
+    company_name   TEXT           NOT NULL,
+    expected_date  DATE,
+    exchange       VARCHAR(50),
+    sector         VARCHAR(100),
+    lockup_days    INTEGER        NOT NULL DEFAULT 180 CHECK (lockup_days > 0),
+    ipo_price      NUMERIC(18,4)  CHECK (ipo_price > 0),
+    ipo_date       DATE,                              -- aggiornato post-quotazione
+    notes          TEXT,
+    created_at     TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
 ```
 
-### Dove viene salvato il file
+### Migrazioni Flyway
 
-Il file `finai.db` viene creato nella directory specificata da `DB_PATH` nel `.env` (default: `./finai.db` relativo alla cartella `backend/`). In sviluppo troverai il file in `backend/finai.db`.
-
-> In produzione considera di montare il file su un volume persistente (es. Docker volume) per non perdere i dati ad ogni restart del container.
+| Versione | File | Descrizione |
+|----------|------|-------------|
+| V1 | `V1__create_tables.sql` | Schema iniziale (3 tabelle) |
+| V2 | `V2__add_indexes.sql` | Indici su ticker, fired_at, expected_date |
+| V3 | `V3__fix_alert_type_constraint.sql` | Constraint alert_type in uppercase |
 
 ---
 
 ## Resilienza — Retry e Circuit Breaker
 
-Tutte le chiamate a Yahoo Finance e NASDAQ sono protette da due livelli di resilienza (`backend/src/services/retry.ts`):
+Tutte le chiamate a Yahoo Finance e NASDAQ sono protette da Resilience4j (`backend/src/main/resources/application.yml`):
 
 ### Retry con backoff esponenziale
 
 ```
-Tentativo 1 → attendi 2s → Tentativo 2 → attendi 4s → Tentativo 3 → errore
+Tentativo 1 → attende 2s → Tentativo 2 → attende 4s → Tentativo 3 → errore propagato
 ```
 
-3 tentativi, delay base 2000ms (raddoppia ad ogni retry). Utile per errori transienti di rete.
+- 3 tentativi, delay base 2000ms, moltiplicatore 2
+- Solo per: `IOException`, `WebClientRequestException`
 
-### Circuit Breaker
+### Circuit Breaker (pattern sliding window)
 
 ```
-CHIUSO (normale) → 5 errori consecutivi → APERTO (blocca chiamate per 60s)
-                                               ↓ dopo 60s
-                                         SEMI-APERTO → prova 1 chiamata
-                                               ↓ successo
-                                            CHIUSO
+CHIUSO (normale)
+  ↓ 50% errori su 10 chiamate
+APERTO (blocca per 60s → ritorna null o lista vuota)
+  ↓ dopo 60s
+SEMI-APERTO (lascia passare 3 chiamate di test)
+  ↓ successo
+CHIUSO
 ```
 
-Quando il circuit breaker è aperto, le chiamate falliscono immediatamente (senza attendere i timeout di rete) e ritornano `undefined`. Il frontend mostra l'ultimo dato in cache o un messaggio di errore.
+I fallback methods restituiscono `null` o liste vuote — il frontend mostra l'ultimo dato in cache o un messaggio "dati non disponibili".
+
+---
+
+## Test
+
+### Struttura e copertura
+
+```
+81 test totali — tutti verdi — JaCoCo coverage ≥ 70%
+
+Service tests (50 test unit — Mockito, zero dipendenze esterne)
+├── IndicatorsServiceTest  24 test (RSI, SMA, volatilità, momentum, BullScore, rangePos)
+├── PortfolioServiceTest    7 test
+├── AlertServiceTest        7 test
+├── IpoServiceTest          6 test
+└── AnthropicServiceTest    6 test (buildSystemPrompt per ogni tab)
+
+Controller tests (13 test funzionali — @WebMvcTest + MockMvc)
+├── PortfolioControllerTest 7 test (200/201/400/404/409 HTTP status)
+└── AlertControllerTest     6 test
+
+Integration tests (18 test — Spring Boot + PostgreSQL reale)
+├── PortfolioIntegrationTest 7 test (ciclo CRUD completo)
+├── AlertIntegrationTest     6 test (creazione → fire → history)
+└── IpoIntegrationTest       5 test (watchlist + lock-up calc)
+```
+
+### Eseguire i test
+
+```bash
+# Tutti i test (unitari + funzionali + integrazione)
+npm run test:backend
+# oppure:
+cd backend && mvn test
+
+# Solo unit test (rapidi, no DB)
+cd backend && mvn test -Dtest="*ServiceTest,*ControllerTest"
+
+# Solo integration test (richiedono PostgreSQL)
+cd backend && mvn test -Dtest="*IntegrationTest"
+
+# Report copertura JaCoCo
+cd backend && mvn test && open target/site/jacoco/index.html
+```
+
+### Prerequisiti per i test di integrazione
+
+Il profilo `test` si connette a `finai_test` su PostgreSQL locale. Setup:
+
+```bash
+sudo -u postgres psql -c "CREATE USER finai WITH PASSWORD 'finai';"
+sudo -u postgres psql -c "CREATE DATABASE finai_test OWNER finai;"
+```
+
+> In ambienti CI con Docker disponibile, sostituire con Testcontainers aggiungendo
+> `@Testcontainers`, `@Container PostgreSQLContainer` e `@DynamicPropertySource`
+> ai test di integrazione.
 
 ---
 
 ## Indicatori tecnici implementati
 
-Gli indicatori sono calcolati sia lato backend (risposte API) che lato frontend (grafici e previsioni).
+Calcolati server-side in `IndicatorsService` e replicati client-side in `indicators.ts` (per grafici/scenari):
 
 | Indicatore | Descrizione | Parametri |
 |------------|-------------|-----------|
-| **RSI** | Relative Strength Index | period = 14 |
+| **RSI** | Relative Strength Index (smoothing Wilder) | period = 14 |
 | **SMA** | Simple Moving Average | period = 20, 50, 200 |
 | **EMA** | Exponential Moving Average | period configurabile |
 | **MACD** | Moving Average Convergence/Divergence | EMA12 - EMA26, signal EMA9 |
 | **Bande di Bollinger** | Upper/Middle/Lower band | period = 20, σ = 2 |
-| **Volatilità** | Deviazione standard log-return annualizzata | √252 × σ_giornaliera |
+| **Volatilità** | σ log-return annualizzata (`√252 × σ_daily`) | finestra = tutti i giorni |
 | **Momentum** | Variazione % su N giorni | days = 30 |
 | **BullScore** | Score composito 0–100 | 7 criteri pesati |
-| **LongTermScore** | Idoneità investimento DCA 0–100 | 7 criteri con punti |
+| **LongTermScore** | Idoneità DCA 0–100 | 7 criteri |
 
 ### BullScore — criteri e pesi
 
 ```
-Prezzo > SMA200   → +25 pt   (trend primario rialzista)
-Prezzo > SMA50    → +20 pt   (trend intermedio)
-Prezzo > SMA20    → +15 pt   (trend breve)
-RSI 50–70         → +15 pt   (forza senza ipercomprato)
-Momentum30 > 0    → +10 pt   (slancio positivo)
-Volatilità < 30%  → +10 pt   (stabilità)
-RangePos52W > 50% →  +5 pt   (vicino ai massimi annuali)
-                  ─────────
-                    100 pt max
+Prezzo > SMA200   → +25pt   trend primario rialzista
+Prezzo > SMA50    → +20pt   trend intermedio
+Prezzo > SMA20    → +15pt   trend breve
+RSI ∈ [50, 70]    → +15pt   forza senza ipercomprato
+Momentum30 > 0    → +10pt   slancio positivo
+Volatilità < 30%  → +10pt   stabilità
+RangePos52W > 50% →  +5pt   vicino ai massimi annuali
+                  ──────────
+                    100pt max
 ```
 
 ---
 
 ## Sistema di caching
 
-Il backend utilizza 5 istanze `NodeCache` indipendenti con TTL ottimizzati:
+Il backend usa Caffeine con 5 tier indipendenti, tutti con eviction LRU:
 
 ```
 ┌──────────────┬─────────┬──────────────────────────────────────────────┐
-│ Cache        │   TTL   │ Motivazione                                  │
+│ Cache name   │   TTL   │ Motivazione                                  │
 ├──────────────┼─────────┼──────────────────────────────────────────────┤
-│ quotesCache  │  60 sec │ Dati real-time: aggiornati ogni minuto        │
-│ batchCache   │ 120 sec │ Batch market: leggermente più stabile         │
-│ historyCache │   4 ore │ Storico: non cambia durante la giornata       │
-│ aiCache      │  30 min │ Risposte AI: riusabili per stesso contesto    │
-│ ipoCache     │   1 ora │ IPO calendar: si aggiorna raramente           │
+│ quotes       │  60 sec │ Dati real-time: si aggiornano ogni minuto     │
+│ batch        │ 120 sec │ Batch market: leggermente più stabili         │
+│ history      │   4 ore │ Storico: non cambia durante la giornata       │
+│ search       │  30 sec │ Autocomplete: freshness breve                 │
+│ ipo          │   1 ora │ Calendario IPO: aggiornato raramente          │
 └──────────────┴─────────┴──────────────────────────────────────────────┘
 ```
 
-La cache `search` (autocomplete) ha TTL 30s e usa la chiave `search:<query>`.
-
-Anche il frontend ha il proprio layer di caching tramite **React Query** con `staleTime` allineati ai TTL del backend.
+Il frontend ha un secondo layer di caching con **React Query** (`staleTime` allineati ai TTL del backend).
 
 ---
 
 ## Universo di strumenti supportati
 
-FINAI include un universo pre-configurato di **160+ azioni** suddiviso per area geografica, più 28 ETF.
+FINAI include **160+ azioni** suddivise per area geografica più **28 ETF**:
 
-### Azioni per area geografica
-
-| Area | Indice di riferimento | Ticker inclusi |
-|------|----------------------|----------------|
+| Area | Indice | Ticker inclusi |
+|------|--------|----------------|
 | **USA** | S&P 500 / Nasdaq | AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, BRK-B, JPM, V, MA, UNH, XOM, LLY, JNJ, AMD, INTC, QCOM, NFLX, DIS, BAC, WMT, HD, CVX, COST, ADBE, CRM, NOW, PANW, SNOW… (60 ticker) |
-| **Germania** | DAX 40 | SAP.DE, SIE.DE, ALV.DE, BMW.DE, BAYN.DE, MBG.DE, ADS.DE, MUV2.DE, DTE.DE, EOAN.DE, BAS.DE, DBK.DE, VOW3.DE, RWE.DE, HEIA.DE, HEN3.DE, FRE.DE, CON.DE, ZAL.DE… (27 ticker) |
-| **Francia** | CAC 40 | MC.PA, OR.PA, SU.PA, AI.PA, KER.PA, RMS.PA, BNP.PA, SAN.PA, TTE.PA, AIR.PA, CS.PA, BN.PA, DG.PA, ACA.PA, STMPA.PA, ORA.PA, VIE.PA, SGO.PA… (25 ticker) |
-| **Italia** | FTSE MIB | ISP.MI, ENI.MI, RACE.MI, MONC.MI, LDO.MI, ENEL.MI, UCG.MI, TIT.MI, STM.MI, G.MI, BAMI.MI, CPR.MI, AMP.MI, MB.MI, FCA.MI… (20 ticker) |
-| **Paesi Bassi** | AEX | ASML.AS, INGA.AS, ADYEN.AS, BESI.AS, UNA.AS, HEIA.AS, RDSA.AS, NN.AS, PHIA.AS, WKL.AS, AKZA.AS (11 ticker) |
-| **Spagna** | IBEX 35 | ITX.MC, IBE.MC, SAN.MC, BBVA.MC, REP.MC, TEF.MC, AMS.MC, FER.MC, ENG.MC, IAG.MC, BKT.MC (11 ticker) |
+| **Germania** | DAX 40 | SAP.DE, SIE.DE, ALV.DE, BMW.DE, BAYN.DE, MBG.DE, ADS.DE, MUV2.DE, DTE.DE, EOAN.DE, BAS.DE, DBK.DE, VOW3.DE, RWE.DE… (27 ticker) |
+| **Francia** | CAC 40 | MC.PA, OR.PA, SU.PA, AI.PA, KER.PA, RMS.PA, BNP.PA, SAN.PA, TTE.PA, AIR.PA, CS.PA, BN.PA, DG.PA, ACA.PA, STMPA.PA… (25 ticker) |
+| **Italia** | FTSE MIB | ISP.MI, ENI.MI, RACE.MI, MONC.MI, LDO.MI, ENEL.MI, UCG.MI, TIT.MI, STM.MI, G.MI, BAMI.MI… (20 ticker) |
+| **Paesi Bassi** | AEX | ASML.AS, INGA.AS, ADYEN.AS, BESI.AS, UNA.AS, HEIA.AS, RDSA.AS, NN.AS… (11 ticker) |
+| **Spagna** | IBEX 35 | ITX.MC, IBE.MC, SAN.MC, BBVA.MC, REP.MC, TEF.MC, AMS.MC… (11 ticker) |
 | **Svizzera** | SMI | NESN.SW, ROG.SW, NOVN.SW, ABBN.SW, ZURN.SW, UBSG.SW (6 ticker) |
 
-### ETF supportati
+**ETF**: globali UCITS (VWCE.DE, IWDA.AS, EQQQ.AS), USA (SPY, QQQ, VTI, SCHD), obbligazionari (AGGH.AS, TLT), tematici (AI, clean energy, robotica).
 
-| Categoria | ETF inclusi |
-|-----------|-------------|
-| **Globali UCITS** | VWCE.DE, IWDA.AS, EQQQ.AS, WSML.AS, IEMA.AS, ISAC.AS |
-| **USA** | SPY, QQQ, IVV, VOO, VTI, SCHD, IWM, XLK, XLF |
-| **Obbligazionari** | AGGH.AS, IEAG.AS, IBTM.AS, IBTS.AS, HYG, TLT |
-| **Tematici** | IQQH.DE (clean energy), WTAI.AS (AI & tech), 2B76.DE (robotica), IQQB.DE (biotecnologia) |
-| **Materie prime** | GLD, IAU, SLV, USO |
-
-Qualsiasi ticker Yahoo Finance può essere cercato manualmente tramite la barra di ricerca autocomplete nelle tab **Analisi**, **Confronto** e **Lungo Termine**.
+Qualsiasi ticker Yahoo Finance può essere cercato con l'autocomplete nelle tab Analisi, Confronto e Lungo Termine.
 
 ---
 
 ## Tema e personalizzazione
 
-L'app supporta **dark mode** (default) e **light mode**, commutabili tramite il bottone in header. Il tema viene persistito in `localStorage` e applicato sull'elemento `<html>` tramite l'attributo `data-theme` prima del mount di React (elimina il flash di tema errato al caricamento).
-
-I colori principali del tema dark:
+Dark mode (default) e light mode, commutabili dall'header. Il tema è persistito in `localStorage` e applicato prima del mount React (no flash).
 
 ```css
 --acc:    #e8f542   /* lime-yellow — accento primario */

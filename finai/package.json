@@ -2,15 +2,27 @@
   "name": "finai",
   "version": "1.0.0",
   "private": true,
+  "description": "FINAI — Advisor finanziario personale. Backend: Java/Spring Boot. Frontend: React/Vite.",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npx tsx watch src/index.ts",
+    "dev:backend": "cd backend && mvn spring-boot:run -Dspring-boot.run.profiles=development",
     "dev:frontend": "cd frontend && npx vite",
+
     "build": "npm run build:backend && npm run build:frontend",
-    "build:backend": "cd backend && npx tsc",
+    "build:backend": "cd backend && mvn package -DskipTests",
     "build:frontend": "cd frontend && npx vite build",
-    "start": "node backend/dist/index.js",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && mvn test",
+    "test:frontend": "cd frontend && npx vitest run",
+
+    "start": "java -jar backend/target/finai-backend-1.0.0.jar",
+
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+
+    "install:all": "npm install && cd frontend && npm install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -1,0 +1,31 @@
+# Profilo attivato automaticamente dai test con @ActiveProfiles("test")
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://127.0.0.1:5432/finai_test}
+    username: ${TEST_DB_USER:finai}
+    password: ${TEST_DB_PASSWORD:finai}
+
+  flyway:
+    enabled: true
+    clean-disabled: false             # permette flyway clean nel profilo test
+    clean-on-validation-error: true   # ricrea lo schema se checksum migrazione cambia
+
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: validate
+
+  cache:
+    type: simple   # Cache semplice in memoria (no Caffeine spec) per i test
+
+finai:
+  anthropic:
+    api-key: test-key
+    model: claude-haiku-4-5-20251001
+  rate-limit:
+    global-per-minute: 10000   # Disabilita pratica il rate limit nei test
+    ai-per-minute: 10000
+
+logging:
+  level:
+    com.finai: DEBUG
