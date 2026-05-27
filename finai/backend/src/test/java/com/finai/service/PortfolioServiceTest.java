@@ -130,7 +130,7 @@ class PortfolioServiceTest {
     void refresh_updatesPricesFromYahoo() {
         when(repository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(sampleItem));
 
-        QuoteDto quote = new QuoteDto("AAPL", "Apple Inc.", 190.0, 1.0, 0.5,
+        QuoteDto quote = new QuoteDto("AAPL", "Apple Inc.", 190.0, 1.0, 0.5, 12.5,
                 200.0, 140.0, 50_000_000L, 3_000_000_000L, 29.0,
                 "USD", "NASDAQ", 70, System.currentTimeMillis());
         when(yahooFinanceService.fetchBatch(List.of("AAPL"))).thenReturn(List.of(quote));
