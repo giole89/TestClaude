@@ -1,6 +1,7 @@
 package com.finai.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finai.dto.quote.HistoryPoint;
 import com.finai.dto.quote.QuoteDto;
 import com.finai.dto.search.SearchResultDto;
@@ -9,12 +10,9 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -24,6 +22,9 @@ import java.util.*;
 /**
  * Servizio di accesso a Yahoo Finance.
  *
+ * <p>Utilizza {@link YahooCrumbProvider} per gestire l'autenticazione
+ * (crumb token + cookie) richiesta da Yahoo Finance dal 2024.</p>
+ *
  * <p>Tutte le chiamate esterne sono protette da:
  * <ul>
  *   <li>{@link Retry} — 3 tentativi con backoff esponenziale 2s→4s→8s</li>
@@ -32,16 +33,16 @@ import java.util.*;
  * </ul>
  *
  * <p>I risultati sono cachati in memoria (Caffeine) con TTL configurati in
- * {@code CacheConfig}. Le annotazioni {@code @Cacheable} agiscono come primo
- * layer di difesa prima di raggiungere il circuit breaker.</p>
+ * {@code CacheConfig}.</p>
  */
 @Service
 public class YahooFinanceService {
 
     private static final Logger log = LoggerFactory.getLogger(YahooFinanceService.class);
 
-    private final WebClient yahooClient;
-    private final IndicatorsService indicators;
+    private final YahooCrumbProvider crumb;
+    private final IndicatorsService   indicators;
+    private final ObjectMapper        mapper;
 
     @Value("${finai.yahoo.base-url-v7:https://query1.finance.yahoo.com/v7/finance}")
     private String baseUrlV7;
@@ -52,10 +53,12 @@ public class YahooFinanceService {
     @Value("${finai.yahoo.base-url-search:https://query1.finance.yahoo.com/v1/finance}")
     private String baseUrlSearch;
 
-    public YahooFinanceService(@Qualifier("yahooWebClient") WebClient yahooClient,
-                               IndicatorsService indicators) {
-        this.yahooClient = yahooClient;
-        this.indicators  = indicators;
+    public YahooFinanceService(YahooCrumbProvider crumb,
+                               IndicatorsService indicators,
+                               ObjectMapper mapper) {
+        this.crumb      = crumb;
+        this.indicators = indicators;
+        this.mapper     = mapper;
     }
 
     // ─────────────────────────────────── Quote singola ───────────────────────
@@ -65,7 +68,6 @@ public class YahooFinanceService {
      *
      * @param ticker simbolo Yahoo Finance (es. "AAPL", "ISP.MI")
      * @return QuoteDto, oppure null se il circuit breaker è aperto
-     * @throws FinaiException se il ticker non viene trovato
      */
     @Cacheable(value = "quotes", key = "#ticker.toUpperCase()")
     @Retry(name = "yahooFinance")
@@ -77,14 +79,7 @@ public class YahooFinanceService {
                 "regularMarketVolume,marketCap,trailingPE,fiftyTwoWeekHigh,fiftyTwoWeekLow," +
                 "longName,shortName,fullExchangeName,currency";
 
-        JsonNode root = yahooClient.get().uri(url)
-                .retrieve()
-                .onStatus(s -> s.equals(HttpStatus.NOT_FOUND),
-                        r -> reactor.core.publisher.Mono.error(
-                                new FinaiException("Ticker non trovato: " + ticker, 404)))
-                .bodyToMono(JsonNode.class)
-                .block();
-
+        JsonNode root = fetch(url);
         JsonNode result = extractFirstResult(root, "quoteResponse");
         return mapToQuoteDto(result);
     }
@@ -99,7 +94,6 @@ public class YahooFinanceService {
 
     /**
      * Recupera le quote di più ticker in una singola chiamata HTTP.
-     * I ticker vengono passati come lista separata da virgola.
      *
      * @param tickers lista di simboli (max ~20 per chiamata Yahoo)
      * @return lista di QuoteDto (eventuali ticker non trovati vengono omessi)
@@ -117,20 +111,13 @@ public class YahooFinanceService {
                 "regularMarketVolume,marketCap,trailingPE,fiftyTwoWeekHigh,fiftyTwoWeekLow," +
                 "longName,shortName,fullExchangeName,currency";
 
-        JsonNode root = yahooClient.get().uri(url)
-                .retrieve()
-                .bodyToMono(JsonNode.class)
-                .block();
-
+        JsonNode root = fetch(url);
         List<QuoteDto> results = new ArrayList<>();
         JsonNode resultArray = root.path("quoteResponse").path("result");
         if (resultArray.isArray()) {
             for (JsonNode node : resultArray) {
-                try {
-                    results.add(mapToQuoteDto(node));
-                } catch (Exception e) {
-                    log.debug("Skipping ticker in batch: {}", e.getMessage());
-                }
+                try { results.add(mapToQuoteDto(node)); }
+                catch (Exception e) { log.debug("Skipping ticker in batch: {}", e.getMessage()); }
             }
         }
         return results;
@@ -157,13 +144,7 @@ public class YahooFinanceService {
     public List<HistoryPoint> fetchHistory(String ticker, String range) {
         log.debug("Fetching history {} range={}", ticker, range);
         String url = baseUrlV8 + "/chart/" + ticker + "?interval=1d&range=" + range;
-
-        JsonNode root = yahooClient.get().uri(url)
-                .retrieve()
-                .bodyToMono(JsonNode.class)
-                .block();
-
-        return parseHistory(root);
+        return parseHistory(fetch(url));
     }
 
     @SuppressWarnings("unused")
@@ -188,11 +169,7 @@ public class YahooFinanceService {
         String url = baseUrlSearch + "/search?q=" + query +
                 "&quotesCount=10&lang=en-US&newsCount=0&enableFuzzyQuery=false";
 
-        JsonNode root = yahooClient.get().uri(url)
-                .retrieve()
-                .bodyToMono(JsonNode.class)
-                .block();
-
+        JsonNode root = fetch(url);
         List<SearchResultDto> results = new ArrayList<>();
         JsonNode quotes = root.path("quotes");
         if (quotes.isArray()) {
@@ -202,11 +179,8 @@ public class YahooFinanceService {
                 String shortName = q.path("shortname").asText(null);
                 String exchDisp  = q.path("exchDisp").asText(q.path("exchange").asText(""));
                 String quoteType = q.path("quoteType").asText("EQUITY");
-
                 if (symbol == null || symbol.isBlank()) continue;
-                String name = longName != null ? longName : shortName;
-                if (name == null) name = symbol;
-
+                String name = longName != null ? longName : (shortName != null ? shortName : symbol);
                 results.add(new SearchResultDto(symbol, name, exchDisp, quoteType));
             }
         }
@@ -221,21 +195,29 @@ public class YahooFinanceService {
 
     // ─────────────────────────────────── Parsing privato ─────────────────────
 
+    private JsonNode fetch(String url) {
+        try {
+            return mapper.readTree(crumb.fetch(url));
+        } catch (Exception e) {
+            throw new FinaiException("Errore chiamata Yahoo Finance: " + e.getMessage(), 502);
+        }
+    }
+
     private QuoteDto mapToQuoteDto(JsonNode n) {
         if (n == null || n.isMissingNode()) throw new FinaiException("Ticker non trovato", 404);
 
-        String ticker   = n.path("symbol").asText();
-        String longName = n.path("longName").asText(n.path("shortName").asText(ticker));
-        Double price    = nullableDouble(n, "regularMarketPrice");
-        Double change   = nullableDouble(n, "regularMarketChange");
-        Double changePct= nullableDouble(n, "regularMarketChangePercent");
-        Double high52w  = nullableDouble(n, "fiftyTwoWeekHigh");
-        Double low52w   = nullableDouble(n, "fiftyTwoWeekLow");
-        Long   volume   = nullableLong(n, "regularMarketVolume");
-        Long   mktCap   = nullableLong(n, "marketCap");
-        Double pe       = nullableDouble(n, "trailingPE");
-        String currency = n.path("currency").asText("USD");
-        String exchange = n.path("fullExchangeName").asText("");
+        String ticker    = n.path("symbol").asText();
+        String longName  = n.path("longName").asText(n.path("shortName").asText(ticker));
+        Double price     = nullableDouble(n, "regularMarketPrice");
+        Double change    = nullableDouble(n, "regularMarketChange");
+        Double changePct = nullableDouble(n, "regularMarketChangePercent");
+        Double high52w   = nullableDouble(n, "fiftyTwoWeekHigh");
+        Double low52w    = nullableDouble(n, "fiftyTwoWeekLow");
+        Long   volume    = nullableLong(n, "regularMarketVolume");
+        Long   mktCap    = nullableLong(n, "marketCap");
+        Double pe        = nullableDouble(n, "trailingPE");
+        String currency  = n.path("currency").asText("USD");
+        String exchange  = n.path("fullExchangeName").asText("");
 
         Integer rangePos = indicators.calcRangePosition(price, low52w, high52w);
 
@@ -257,14 +239,12 @@ public class YahooFinanceService {
         List<HistoryPoint> points = new ArrayList<>();
         for (int i = 0; i < timestamps.size(); i++) {
             long ts = timestamps.get(i).asLong();
-            // Yahoo restituisce timestamp Unix in secondi
-            LocalDate date = Instant.ofEpochSecond(ts).atZone(ZoneOffset.UTC).toLocalDate();
-            Double open   = safeArrayDouble(quote.path("open"),   i);
-            Double high   = safeArrayDouble(quote.path("high"),   i);
-            Double low    = safeArrayDouble(quote.path("low"),    i);
-            Double close  = safeArrayDouble(quote.path("close"),  i);
-            Long   volume = safeArrayLong(quote.path("volume"),   i);
-
+            LocalDate date  = Instant.ofEpochSecond(ts).atZone(ZoneOffset.UTC).toLocalDate();
+            Double open     = safeArrayDouble(quote.path("open"),   i);
+            Double high     = safeArrayDouble(quote.path("high"),   i);
+            Double low      = safeArrayDouble(quote.path("low"),    i);
+            Double close    = safeArrayDouble(quote.path("close"),  i);
+            Long   volume   = safeArrayLong(quote.path("volume"),   i);
             if (close != null) {
                 points.add(new HistoryPoint(date.toString(), open, high, low, close, volume));
             }
