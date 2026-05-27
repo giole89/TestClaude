@@ -24,8 +24,6 @@ services:
       POSTGRES_DB:       finai
       POSTGRES_USER:     finai
       POSTGRES_PASSWORD: finai
-    ports:
-      - "5432:5432"
     volumes:
       - finai_pgdata:/var/lib/postgresql/data
     healthcheck:
