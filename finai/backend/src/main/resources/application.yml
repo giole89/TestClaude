@@ -11,6 +11,7 @@ spring:
     hikari:
       maximum-pool-size: 10
       connection-timeout: 20000
+      initialization-fail-timeout: 60000  # aspetta fino a 60s per la prima connessione (Docker startup)
 
   # ── JPA ─────────────────────────────────────────────────────────────────
   jpa:
