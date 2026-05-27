@@ -19,6 +19,7 @@ public record FullQuoteDto(
         Double  price,
         Double  dayChange,
         Double  dayChangePct,
+        Double  ytdChangePct,
         Double  high52w,
         Double  low52w,
         Long    volume,

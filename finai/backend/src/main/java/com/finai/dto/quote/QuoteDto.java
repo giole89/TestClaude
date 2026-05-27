@@ -13,6 +13,7 @@ public record QuoteDto(
         @Schema(description = "Prezzo corrente")       Double price,
         @Schema(description = "Variazione assoluta")   Double dayChange,
         @Schema(description = "Variazione percentuale")Double dayChangePct,
+        @Schema(description = "Variazione % da inizio anno (YTD)") Double ytdChangePct,
         @Schema(description = "Massimo 52 settimane")  Double high52w,
         @Schema(description = "Minimo 52 settimane")   Double low52w,
         @Schema(description = "Volume giornaliero")    Long   volume,

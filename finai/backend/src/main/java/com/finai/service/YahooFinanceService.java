@@ -77,7 +77,7 @@ public class YahooFinanceService {
         String url = baseUrlV7 + "/quote?symbols=" + ticker +
                 "&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent," +
                 "regularMarketVolume,marketCap,trailingPE,fiftyTwoWeekHigh,fiftyTwoWeekLow," +
-                "longName,shortName,fullExchangeName,currency";
+                "longName,shortName,fullExchangeName,currency,ytdReturn,fiftyTwoWeekChangePercent";
 
         JsonNode root = fetch(url);
         JsonNode result = extractFirstResult(root, "quoteResponse");
@@ -109,7 +109,7 @@ public class YahooFinanceService {
         String url = baseUrlV7 + "/quote?symbols=" + symbols +
                 "&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent," +
                 "regularMarketVolume,marketCap,trailingPE,fiftyTwoWeekHigh,fiftyTwoWeekLow," +
-                "longName,shortName,fullExchangeName,currency";
+                "longName,shortName,fullExchangeName,currency,ytdReturn,fiftyTwoWeekChangePercent";
 
         JsonNode root = fetch(url);
         List<QuoteDto> results = new ArrayList<>();
@@ -211,6 +211,14 @@ public class YahooFinanceService {
         Double price     = nullableDouble(n, "regularMarketPrice");
         Double change    = nullableDouble(n, "regularMarketChange");
         Double changePct = nullableDouble(n, "regularMarketChangePercent");
+        // ytdReturn disponibile per ETF/fondi; fiftyTwoWeekChangePercent come fallback per azioni
+        Double ytd       = nullableDouble(n, "ytdReturn");
+        if (ytd == null) {
+            Double w52chg = nullableDouble(n, "fiftyTwoWeekChangePercent");
+            if (w52chg != null) ytd = w52chg * 100.0;
+        } else {
+            ytd = ytd * 100.0; // Yahoo restituisce ytdReturn come decimale (es. 0.12 = 12%)
+        }
         Double high52w   = nullableDouble(n, "fiftyTwoWeekHigh");
         Double low52w    = nullableDouble(n, "fiftyTwoWeekLow");
         Long   volume    = nullableLong(n, "regularMarketVolume");
@@ -221,7 +229,7 @@ public class YahooFinanceService {
 
         Integer rangePos = indicators.calcRangePosition(price, low52w, high52w);
 
-        return new QuoteDto(ticker, longName, price, change, changePct,
+        return new QuoteDto(ticker, longName, price, change, changePct, ytd,
                 high52w, low52w, volume, mktCap, pe, currency, exchange,
                 rangePos, Instant.now().toEpochMilli());
     }

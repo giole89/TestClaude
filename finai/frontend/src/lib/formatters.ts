@@ -16,7 +16,8 @@ export function formatNumber(value: number, decimals = 2): string {
   }).format(value)
 }
 
-export function formatPct(value: number, decimals = 2): string {
+export function formatPct(value: number | null | undefined, decimals = 2): string {
+  if (value == null || isNaN(value as number)) return 'N/D'
   const sign = value >= 0 ? '+' : ''
   return `${sign}${formatNumber(value, decimals)}%`
 }

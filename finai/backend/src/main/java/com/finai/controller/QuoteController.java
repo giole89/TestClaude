@@ -68,7 +68,7 @@ public class QuoteController {
 
         return ResponseEntity.ok(new FullQuoteDto(
                 quote.ticker(), quote.name(), quote.price(),
-                quote.dayChange(), quote.dayChangePct(),
+                quote.dayChange(), quote.dayChangePct(), quote.ytdChangePct(),
                 quote.high52w(), quote.low52w(), quote.volume(),
                 quote.marketCap(), quote.pe(), quote.currency(),
                 quote.exchange(), quote.rangePosition(), quote.timestamp(),
