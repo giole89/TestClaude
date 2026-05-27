@@ -61,7 +61,7 @@ services:
     container_name: finai-frontend
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - "5174:80"
     depends_on:
       - backend
 
