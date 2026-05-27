@@ -143,12 +143,12 @@ public class NasdaqService {
 
                 result.add(new RecentIpoDto(
                         UUID.randomUUID().toString(),
-                        row.path("companyName").asText(""),
-                        row.path("proposedTickerSymbol").asText(""),
-                        row.path("pricedDate").asText(""),
+                        row.path("companyName").asText(row.path("name").asText("")),
+                        row.path("proposedTickerSymbol").asText(row.path("symbol").asText("")),
+                        row.path("pricedDate").asText(row.path("ipoDate").asText("")),
                         ipoPrice,
                         null,    // currentPrice: aggiornato dal frontend via /api/quote
-                        null,
+                        null,    // performance: calcolata quando currentPrice disponibile
                         row.path("exchange").asText("NASDAQ")
                 ));
             }

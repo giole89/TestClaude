@@ -3,11 +3,11 @@ package com.finai.dto.ipo;
 /** IPO in arrivo dal calendario NASDAQ. */
 public record UpcomingIpoDto(
         String id,
-        String company,
-        String ticker,
+        String companyName,
+        String proposedTicker,
         String expectedDate,
         String priceRange,
-        String shares,
+        String sharesOffered,
         String exchange,
-        String sector
+        String dealStatus
 ) {}
