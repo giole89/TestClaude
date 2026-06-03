@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finai.dto.portfolio.AddPortfolioItemRequest;
 import com.finai.dto.portfolio.PortfolioItemDto;
 import com.finai.exception.FinaiException;
+import com.finai.service.PortfolioAnalyticsService;
 import com.finai.service.PortfolioService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,9 @@ class PortfolioControllerTest {
 
     @MockBean
     private PortfolioService service;
+
+    @MockBean
+    private PortfolioAnalyticsService analyticsService;
 
     // Necessario per il RateLimitInterceptor nel WebMvcConfig
     @MockBean
