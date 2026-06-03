@@ -171,8 +171,9 @@ const CONTENT: Record<string, React.ReactNode> = {
         ['1. Fondamentali', 'Leggi bilancio, P/E ratio, crescita fatturato e utili negli ultimi 3-5 anni'],
         ['2. Trend di lungo termine', 'Il prezzo è sopra SMA200? Il trend primario è rialzista?'],
         ['3. Analisi tecnica', 'Verifica RSI, momentum e posizione rispetto alle medie mobili'],
-        ['4. Contesto settoriale', 'Il settore sta crescendo? Ci sono venti contrari regolatori o macro?'],
-        ['5. Valutazione rischio', 'Qual è il tuo stop loss? Quanto puoi permetterti di perdere?'],
+        ['4. Valutazione (DCF)', 'Usa il modello DCF semplificato nella tab Analisi per stimare il fair value partendo da EPS, crescita attesa e tasso di sconto.'],
+        ['5. Contesto settoriale', 'Il settore sta crescendo? Ci sono venti contrari regolatori o macro?'],
+        ['6. Valutazione rischio', 'Qual è il tuo stop loss? Quanto puoi permetterti di perdere?'],
       ].map(([step, desc]) => (
         <div key={step} style={{ display: 'flex', gap: 16, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--acc)', minWidth: 160 }}>{step}</span>
@@ -260,14 +261,17 @@ const CONTENT: Record<string, React.ReactNode> = {
     <div>
       <h2>🚀 Come Usare FINAI</h2>
       {[
-        ['📈 Mercato', 'Dashboard real-time con i migliori e peggiori titoli/ETF. Clicca su qualsiasi riga per analizzarla.'],
-        ['🔭 Analisi', 'Inserisci un ticker per analisi completa: grafico, indicatori tecnici, segnale e previsioni.'],
+        ['📈 Mercato', 'Dashboard real-time con i migliori e peggiori titoli/ETF per performance giornaliera e YTD. Clicca su qualsiasi riga per analizzarla.'],
+        ['🔭 Analisi', 'Analisi completa di un titolo: grafico interattivo, indicatori tecnici (RSI, SMA), segnale AI, previsioni, DCF semplificato e ultime news.'],
         ['⚖️ Confronto', 'Confronta due strumenti fianco a fianco con tutti gli indicatori chiave.'],
         ['🔔 Alert', 'Imposta alert sui prezzi — ricevi notifiche quando le condizioni si verificano.'],
         ['🌱 Lungo Termine', 'Score 0-100 per valutare se un titolo è adatto per DCA a lungo termine.'],
-        ['💼 Portafoglio', 'Traccia il tuo portafoglio con P&L in tempo reale. Aggiorna i prezzi con un click.'],
-        ['🎯 Suggeriti', 'Portafogli modello pre-costruiti per 4 profili di rischio. Chiedi all\'AI un portafoglio personalizzato.'],
-        ['📚 Guida', 'Sei qui! Torna quando hai dubbi su termini o strategie.'],
+        ['💼 Portafoglio', 'Traccia il portafoglio con P&L in tempo reale. Include: dividendi, benchmark vs S&P 500, simulatore DCA, stima gain fiscale (26% italiano), matrice di correlazione e news aggiornate.'],
+        ['🎯 Suggeriti', 'Portafogli modello pre-costruiti per 4 profili di rischio (Conservativo, Bilanciato, Crescita, Aggressivo). Chiedi all\'AI un portafoglio personalizzato.'],
+        ['🌐 Macro', 'Dashboard macroeconomica: indici globali (S&P 500, Nasdaq, DAX…), valute, commodity, crypto (BTC, ETH) e tassi USA (10Y/30Y). Sentiment aggregato Risk On/Off.'],
+        ['🔍 Screener', 'Filtra l\'universo di oltre 170 titoli per variazione giornaliera, YTD e posizione nel range 52 settimane. Trova opportunità rapidamente.'],
+        ['📌 Watchlist', 'Tieni traccia dei tuoi titoli preferiti. Aggiungi target price per monitorare quando un titolo raggiunge il tuo obiettivo.'],
+        ['📚 Guida', 'Sei qui! Torna quando hai dubbi su termini, indicatori o strategie di investimento.'],
       ].map(([tab, desc]) => (
         <div key={tab} style={{ display: 'flex', gap: 16, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--acc2)', minWidth: 140 }}>{tab}</span>

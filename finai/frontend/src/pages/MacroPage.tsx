@@ -1,17 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
-import { API_BASE, INDICES } from '@/lib/constants'
+import { API_BASE } from '@/lib/constants'
 import { QuoteData } from '@/hooks/useQuote'
 import { formatNumber, formatPct, colorForChange } from '@/lib/formatters'
 
-// Ticker macro aggiuntivi
-const MACRO_TICKERS = [
-  ...INDICES.map(i => i.ticker),
-  '^TNX',   // US 10Y Yield
-  '^TYX',   // US 30Y Yield
-  'BTC-USD',
-  'ETH-USD',
-]
+// Ticker extra non coperti da /api/indices
+const EXTRA_TICKERS = ['^TNX', '^TYX', 'BTC-USD', 'ETH-USD']
 
 const MACRO_LABELS: Record<string, string> = {
   '^GSPC': 'S&P 500',
@@ -40,8 +34,9 @@ const SECTIONS: Array<{
 ]
 
 function MacroCard({ q, label }: { q: QuoteData; label: string }) {
-  const isPositive = q.dayChangePct > 0
-  const color = colorForChange(q.dayChangePct)
+  const changePct = q.dayChangePct ?? 0
+  const isPositive = changePct > 0
+  const color = colorForChange(changePct)
 
   return (
     <div style={{
@@ -54,7 +49,7 @@ function MacroCard({ q, label }: { q: QuoteData; label: string }) {
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <span style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color, fontWeight: 700 }}>
-          {formatPct(q.dayChangePct)}
+          {formatPct(changePct)}
         </span>
         {q.ytdChangePct != null && (
           <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--muted)' }}>
@@ -67,22 +62,37 @@ function MacroCard({ q, label }: { q: QuoteData; label: string }) {
 }
 
 export function MacroPage() {
-  const { data: quotes, isLoading } = useQuery<QuoteData[]>({
-    queryKey: ['macroBatch'],
-    queryFn: () =>
-      axios.get(`${API_BASE}/api/batch`, { params: { tickers: MACRO_TICKERS.join(',') } }).then(r => r.data),
+  // Use the same /api/indices endpoint as the IndexBar — guaranteed to work
+  const { data: indexQuotes, isLoading: loadingIndices } = useQuery<QuoteData[]>({
+    queryKey: ['indices'],
+    queryFn: () => axios.get(`${API_BASE}/api/indices`).then(r => r.data),
     staleTime: 60_000,
     refetchInterval: 60_000,
     retry: 2,
   })
 
-  const quoteMap = Object.fromEntries((quotes ?? []).map(q => [q.ticker, q]))
+  // Extra macro tickers not in /api/indices
+  const { data: extraQuotes, isLoading: loadingExtra } = useQuery<QuoteData[]>({
+    queryKey: ['macroBatch'],
+    queryFn: () =>
+      axios.get(`${API_BASE}/api/batch`, { params: { tickers: EXTRA_TICKERS.join(',') } }).then(r => r.data),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    retry: 2,
+  })
+
+  const isLoading = loadingIndices || loadingExtra
+
+  const quoteMap = Object.fromEntries([
+    ...(indexQuotes ?? []).map(q => [q.ticker, q] as const),
+    ...(extraQuotes ?? []).map(q => [q.ticker, q] as const),
+  ])
 
   // Sentiment globale basato su % indici in positivo
-  const indexTickers = ['^GSPC', '^NDX', '^DJI', '^STOXX50E', 'FTSEMIB.MI']
-  const indexQuotes = indexTickers.map(t => quoteMap[t]).filter(Boolean)
-  const posCount = indexQuotes.filter(q => q.dayChangePct > 0).length
-  const sentimentPct = indexQuotes.length > 0 ? (posCount / indexQuotes.length) * 100 : 0
+  const sentimentTickers = ['^GSPC', '^NDX', '^DJI', '^STOXX50E', 'FTSEMIB.MI']
+  const sentimentQuotes = sentimentTickers.map(t => quoteMap[t]).filter(Boolean)
+  const posCount = sentimentQuotes.filter(q => (q.dayChangePct ?? 0) > 0).length
+  const sentimentPct = sentimentQuotes.length > 0 ? (posCount / sentimentQuotes.length) * 100 : 0
   const sentimentLabel = sentimentPct >= 60 ? 'Risk On 🟢' : sentimentPct >= 40 ? 'Neutro 🟡' : 'Risk Off 🔴'
   const sentimentColor = sentimentPct >= 60 ? 'var(--acc)' : sentimentPct >= 40 ? '#f59e0b' : 'var(--red)'
 
@@ -96,7 +106,7 @@ export function MacroPage() {
         <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 18, color: 'var(--text)' }}>
           Macro Dashboard
         </div>
-        {!isLoading && indexQuotes.length > 0 && (
+        {!isLoading && sentimentQuotes.length > 0 && (
           <div style={{
             background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 10,
             padding: '10px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -104,7 +114,7 @@ export function MacroPage() {
             <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)' }}>Sentiment globale</div>
             <div style={{ fontFamily: 'Instrument Serif', fontSize: 20, color: sentimentColor }}>{sentimentLabel}</div>
             <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--muted)' }}>
-              {posCount}/{indexQuotes.length} indici positivi
+              {posCount}/{sentimentQuotes.length} indici positivi
             </div>
           </div>
         )}

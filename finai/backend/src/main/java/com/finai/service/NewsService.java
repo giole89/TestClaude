@@ -36,8 +36,8 @@ public class NewsService {
     private final YahooCrumbProvider crumb;
     private final ObjectMapper mapper;
 
-    @Value("${finai.yahoo.base-url-v8:https://query1.finance.yahoo.com/v8/finance}")
-    private String baseUrlV8;
+    @Value("${finai.yahoo.base-url-search:https://query1.finance.yahoo.com/v1/finance}")
+    private String baseUrlSearch;
 
     public NewsService(YahooCrumbProvider crumb, ObjectMapper mapper) {
         this.crumb  = crumb;
@@ -95,7 +95,8 @@ public class NewsService {
     }
 
     private List<NewsItemDto> fetchViaApi(String ticker, int count) throws Exception {
-        String url = baseUrlV8 + "/search?q=" + ticker + "&newsCount=" + count + "&quotesCount=0";
+        // Use v1/finance/search — the same endpoint used for ticker autocomplete (known to work with crumb)
+        String url = baseUrlSearch + "/search?q=" + ticker + "&newsCount=" + count + "&quotesCount=0&lang=en-US";
         String body = crumb.fetch(url);
         JsonNode root = mapper.readTree(body);
         JsonNode items = root.path("news");
