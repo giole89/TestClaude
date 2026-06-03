@@ -42,6 +42,12 @@ spring:
       - ipo             # TTL 1h   — calendario IPO
       - ai              # TTL 30m  — risposte AI
       - earnings        # TTL 6h   — date earnings (cambiano raramente)
+      - dividends       # TTL 24h  — dati dividendi
+      - screener        # TTL 5m   — screener azionario
+      - news            # TTL 15m  — news finanziarie
+      - benchmark       # TTL 1h   — benchmark vs S&P 500
+      - correlation     # TTL 4h   — correlazione portafoglio
+      - watchlist       # TTL 60s  — watchlist
     caffeine:
       spec: maximumSize=500,expireAfterWrite=60s
 

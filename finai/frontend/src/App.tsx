@@ -14,6 +14,9 @@ const PortfolioPage = lazy(() => import('@/pages/PortfolioPage').then(m => ({ de
 const SuggestedPage = lazy(() => import('@/pages/SuggestedPage').then(m => ({ default: m.SuggestedPage })))
 const IPOPage = lazy(() => import('@/pages/IPOPage').then(m => ({ default: m.IPOPage })))
 const GuidePage = lazy(() => import('@/pages/GuidePage').then(m => ({ default: m.GuidePage })))
+const ScreenerPage = lazy(() => import('@/pages/ScreenerPage').then(m => ({ default: m.ScreenerPage })))
+const WatchlistPage = lazy(() => import('@/pages/WatchlistPage').then(m => ({ default: m.WatchlistPage })))
+const MacroPage = lazy(() => import('@/pages/MacroPage').then(m => ({ default: m.MacroPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 2 } },
@@ -39,6 +42,9 @@ function TabRouter() {
       {activeTab === 'portfolio' && <PortfolioPage />}
       {activeTab === 'suggested' && <SuggestedPage />}
       {activeTab === 'ipo' && <IPOPage />}
+      {activeTab === 'screener' && <ScreenerPage />}
+      {activeTab === 'watchlist' && <WatchlistPage />}
+      {activeTab === 'macro' && <MacroPage />}
       {activeTab === 'guide' && <GuidePage />}
     </Suspense>
   )

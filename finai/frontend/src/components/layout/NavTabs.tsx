@@ -9,6 +9,9 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'portfolio', label: 'Portafoglio', icon: '💼' },
   { id: 'suggested', label: 'Suggeriti', icon: '🎯' },
   { id: 'ipo', label: 'IPO', icon: '🏛️' },
+  { id: 'screener', label: 'Screener', icon: '🔍' },
+  { id: 'watchlist', label: 'Watchlist', icon: '⭐' },
+  { id: 'macro', label: 'Macro', icon: '🌍' },
   { id: 'guide', label: 'Guida', icon: '📚' },
 ]
 

@@ -25,21 +25,45 @@
 
 ## Funzionalità
 
-FINAI è composta da **9 sezioni** accessibili tramite la barra di navigazione superiore:
+FINAI è composta da **12 sezioni** accessibili tramite la barra di navigazione superiore:
 
 | Tab | Icona | Descrizione |
 |-----|-------|-------------|
 | **Mercato** | 📈 | Dashboard real-time con IndexBar (9 indici/valute), sentiment meter e griglia top/worst azioni + ETF |
-| **Analisi** | 🔭 | Analisi completa di un ticker con ricerca autocomplete: grafico SMA, 8 metriche tecniche, segnale BUY/SELL/HOLD, scenari 30gg |
+| **Analisi** | 🔭 | Analisi completa di un ticker con grafico SMA, 8 metriche tecniche, segnale BUY/SELL/HOLD, DCF semplificato, news ticker |
 | **Confronto** | ⚖️ | Confronto fianco a fianco di due strumenti con tutti gli indicatori e verdetto automatico |
 | **Alert** | 🔔 | Alert sui prezzi (sopra/sotto soglia, variazione %) con notifiche browser native — persistiti su PostgreSQL |
 | **Lungo Termine** | 🌱 | Score 0–100 su 7 criteri per valutare idoneità DCA + strategia di accumulo consigliata |
-| **Portafoglio** | 💼 | Tracker P&L personale: aggiunge posizioni, aggiorna prezzi live, mostra gain/loss — persistito su PostgreSQL |
+| **Portafoglio** | 💼 | Tracker P&L personale, benchmark vs S&P 500, dividendi, gain fiscale 26%, DCA simulator, correlazione, news |
 | **IPO** | 🏛️ | Monitoraggio IPO: calendario prossime quotazioni (NASDAQ), performance IPO recenti, watchlist con tracker lock-up |
 | **Suggeriti** | 🎯 | 4 portafogli modello (Conservativo/Bilanciato/Crescita/Aggressivo) con allocazioni e metriche attese |
+| **Screener** | 🔍 | Screener azionario su ~80 ticker chiave con filtri P/E, dividend yield, YTD, mercato |
+| **Watchlist** | ⭐ | Watchlist personale ticker con target price, distanza dal target, prezzi live — persistita su PostgreSQL |
+| **Macro** | 🌍 | Dashboard macro: indici, valute, commodity, crypto, tassi USA 10/30Y, sentiment indicator globale |
 | **Guida** | 📚 | Guida completa in italiano: glossario, indicatori tecnici, ETF, DCA, errori comuni |
 
 Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i dati del ticker/portafoglio visualizzato e risponde in italiano con streaming in tempo reale.
+
+---
+
+## Nuove funzionalità (v2.0)
+
+### Portafoglio avanzato
+- **Benchmark vs S&P 500**: confronto performance portafoglio con S&P 500 su periodo 3m/6m/1y, con calcolo alpha
+- **Dividendi**: sezione dedicata con rendimento, ex-date e income annuale stimato per posizione
+- **Gain Fiscale Italia**: calcolo indicativo capital gain al 26% (imposte, gain netto per ogni posizione)
+- **DCA Simulator**: simulazione acquisti mensili con prezzo medio carico, valore finale stimato
+- **Correlazione**: matrice heatmap di Pearson sui ritorni giornalieri (max 8 ticker, dati 1y)
+- **News portafoglio**: feed news da Yahoo Finance per i ticker in portafoglio
+
+### Analisi avanzata
+- **DCF Semplificato**: fair value da EPS corrente, growth rate, tasso sconto, terminal growth con semaforo
+- **News ticker**: news Yahoo Finance direttamente nella pagina di analisi
+
+### Nuove tab
+- **Screener**: filtra azioni per P/E, yield, YTD, mercato; bottoni "Analizza" e "Aggiungi a portafoglio"
+- **Watchlist**: monitora ticker con target price; distanza dal target calcolata live; persistita su DB
+- **Macro Dashboard**: indici globali, valute, commodity, crypto (BTC/ETH), tassi USA; sentiment indicator
 
 ---
 

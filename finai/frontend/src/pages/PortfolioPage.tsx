@@ -2,6 +2,12 @@ import { useState } from 'react'
 import { usePortfolio } from '@/hooks/usePortfolio'
 import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics'
 import { useEarnings } from '@/hooks/useEarnings'
+import { useDividends } from '@/hooks/useDividends'
+import { useBenchmark } from '@/hooks/useBenchmark'
+import { useNews } from '@/hooks/useNews'
+import { FiscalPanel } from '@/components/portfolio/FiscalPanel'
+import { DcaSimulator } from '@/components/portfolio/DcaSimulator'
+import { CorrelationHeatmap } from '@/components/portfolio/CorrelationHeatmap'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { chatKey } from '@/store/useChatStore'
 import { useAppStore } from '@/store/useAppStore'
@@ -41,6 +47,10 @@ export function PortfolioPage() {
   const analytics = usePortfolioAnalytics(hasItems)
   const tickers = items.map(i => i.ticker)
   const earnings = useEarnings(tickers)
+  const dividends = useDividends(hasItems ? tickers : [])
+  const [benchmarkPeriod, setBenchmarkPeriod] = useState('1y')
+  const benchmark = useBenchmark(benchmarkPeriod)
+  const news = useNews(hasItems ? tickers.slice(0, 5) : [], 8)
   const [tInput, setTInput] = useState('')
   const [qty, setQty] = useState('')
   const [load, setLoad] = useState('')
@@ -333,6 +343,142 @@ export function PortfolioPage() {
             )}
           </div>
         )}
+
+        {/* ── Benchmark vs S&P 500 ─────────────────────────────────────── */}
+        {hasItems && (
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>
+                Benchmark vs S&P 500
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {['3m', '6m', '1y'].map(p => (
+                  <button key={p} onClick={() => setBenchmarkPeriod(p)} style={{
+                    padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                    background: benchmarkPeriod === p ? 'var(--acc)' : 'var(--s3)',
+                    color: benchmarkPeriod === p ? '#07080a' : 'var(--muted2)',
+                    fontFamily: 'Syne', fontSize: 11, cursor: 'pointer',
+                  }}>{p}</button>
+                ))}
+              </div>
+            </div>
+            {benchmark.isLoading && <div style={{ color: 'var(--muted)', fontFamily: 'Syne', fontSize: 13 }}>Caricamento benchmark…</div>}
+            {benchmark.data && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {[
+                  { label: benchmark.data.portfolioLabel, value: benchmark.data.portfolioReturn, color: benchmark.data.portfolioReturn >= 0 ? 'var(--acc)' : 'var(--red)' },
+                  { label: benchmark.data.benchmarkLabel, value: benchmark.data.benchmarkReturn, color: benchmark.data.benchmarkReturn >= 0 ? 'var(--acc)' : 'var(--red)' },
+                  { label: 'Alpha', value: benchmark.data.alpha, color: benchmark.data.alpha >= 0 ? 'var(--acc)' : 'var(--red)' },
+                ].map(s => (
+                  <div key={s.label} style={{ background: 'var(--s3)', borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+                    <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{s.label}</div>
+                    <div style={{ fontFamily: 'Instrument Serif', fontSize: 22, color: s.color }}>
+                      {(s.value >= 0 ? '+' : '')}{formatNumber(s.value, 2)}%
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Dividendi portafoglio ─────────────────────────────────────── */}
+        {hasItems && (
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+            <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 12 }}>
+              Dividendi portafoglio
+            </div>
+            {dividends.isLoading && <div style={{ color: 'var(--muted)', fontFamily: 'Syne', fontSize: 13 }}>Caricamento dividendi…</div>}
+            {!dividends.isLoading && (dividends.data ?? []).length === 0 && (
+              <div style={{ color: 'var(--muted)', fontFamily: 'Syne', fontSize: 13 }}>Nessun titolo con dividendi nel portafoglio.</div>
+            )}
+            {!dividends.isLoading && (dividends.data ?? []).length > 0 && (() => {
+              const divItems = dividends.data ?? []
+              const totalIncome = divItems.reduce((sum, d) => {
+                const item = items.find(i => i.ticker === d.ticker)
+                return sum + (item ? item.qty * (d.annualDividend ?? 0) : 0)
+              }, 0)
+              return (
+                <>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)', fontWeight: 700 }}>
+                          {['Ticker', 'Rendimento', 'Ex-Date', 'Income annuale stimato'].map(h => (
+                            <th key={h} style={{ padding: '6px 8px', textAlign: h === 'Ticker' ? 'left' : 'right', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {divItems.map(d => {
+                          const item = items.find(i => i.ticker === d.ticker)
+                          const income = item ? item.qty * (d.annualDividend ?? 0) : 0
+                          return (
+                            <tr key={d.ticker} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={{ fontFamily: 'JetBrains Mono', fontWeight: 700, fontSize: 12, color: 'var(--acc)', padding: '8px' }}>{d.ticker}</td>
+                              <td style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: 'var(--text)', padding: '8px', textAlign: 'right' }}>
+                                {d.dividendYield != null ? formatPct(d.dividendYield * 100) : '—'}
+                              </td>
+                              <td style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: 'var(--muted2)', padding: '8px', textAlign: 'right' }}>
+                                {d.exDividendDate ?? '—'}
+                              </td>
+                              <td style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: 'var(--acc)', padding: '8px', textAlign: 'right' }}>
+                                {formatNumber(income, 2)}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ fontWeight: 700, background: 'var(--s3)' }}>
+                          <td colSpan={3} style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--text)', padding: '8px' }}>Totale income annuale stimato</td>
+                          <td style={{ fontFamily: 'JetBrains Mono', fontSize: 14, color: 'var(--acc)', padding: '8px', textAlign: 'right' }}>{formatNumber(totalIncome, 2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        )}
+
+        {/* ── Gain Fiscale ────────────────────────────────────────────────── */}
+        {hasItems && <FiscalPanel items={items} />}
+
+        {/* ── DCA Simulator ───────────────────────────────────────────────── */}
+        <DcaSimulator />
+
+        {/* ── Correlazione portafoglio ─────────────────────────────────────── */}
+        {hasItems && <CorrelationHeatmap />}
+
+        {/* ── News ─────────────────────────────────────────────────────────── */}
+        {hasItems && (
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+            <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 12 }}>
+              News portafoglio
+            </div>
+            {news.isLoading && <div style={{ color: 'var(--muted)', fontFamily: 'Syne', fontSize: 13 }}>Caricamento news…</div>}
+            {!news.isLoading && (news.data ?? []).length === 0 && (
+              <div style={{ color: 'var(--muted)', fontFamily: 'Syne', fontSize: 13 }}>Nessuna news disponibile.</div>
+            )}
+            {!news.isLoading && (news.data ?? []).length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(news.data ?? []).slice(0, 8).map((n, i) => (
+                  <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block', padding: '10px 12px', background: 'var(--s3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--text)', marginBottom: 4, lineHeight: 1.4 }}>{n.title}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {n.publisher && <span style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>{n.publisher}</span>}
+                      {n.publishedAt && <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'var(--muted)' }}>{new Date(n.publishedAt).toLocaleDateString('it-IT')}</span>}
+                      <span style={{ fontFamily: 'JetBrains Mono', fontSize: 10, color: 'var(--acc)' }}>{n.ticker}</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
       <div style={{ flex: 1, minWidth: 320 }}>
         <ChatPanel tabKey={tabKey} context={context} quickActions={['Analizza il mio portafoglio', 'Come diversifico meglio?', 'Quali sono i rischi principali?']} placeholder="Chiedimi del tuo portafoglio…" />
