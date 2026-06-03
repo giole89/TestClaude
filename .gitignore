@@ -17,3 +17,6 @@ finai/backend/.env
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code internal
+.claude/
