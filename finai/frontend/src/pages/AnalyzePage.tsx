@@ -160,7 +160,7 @@ export function AnalyzePage() {
             <PriceChart history={data.history} ticker={data.ticker} />
             <PredictionCard data={data} />
             {/* ── DCF Semplificato ───────────────────── */}
-            <DcfSection data={{ price: data.price, pe: data.pe }} />
+            <DcfSection data={{ price: data.price, pe: data.pe ?? null }} />
             {/* ── News ─────────────────────────────── */}
             <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
               <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 12 }}>
