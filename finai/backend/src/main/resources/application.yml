@@ -61,15 +61,15 @@ spring:
 server:
   port: ${PORT:3001}
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: on_param       # messaggio solo se ?message presente (non in produzione)
+    include-binding-errors: never   # mai esporre dettagli di binding al client
 
 # ── Actuator ────────────────────────────────────────────────────────────────
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,caches
+        include: health,info  # metrics e caches rimossi: esporrebbero dati interni senza auth
   endpoint:
     health:
       show-details: when-authorized
@@ -136,8 +136,10 @@ resilience4j:
 springdoc:
   api-docs:
     path: /api-docs
+    enabled: ${SWAGGER_ENABLED:false}   # disabilitato di default; attivare solo in dev
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${SWAGGER_ENABLED:false}
     operations-sorter: alpha
     tags-sorter: alpha
   show-actuator: false

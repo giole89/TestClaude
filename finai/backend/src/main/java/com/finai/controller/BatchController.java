@@ -39,6 +39,7 @@ public class BatchController {
                 .map(String::trim)
                 .map(String::toUpperCase)
                 .filter(t -> !t.isBlank())
+                .limit(50) // max 50 ticker per chiamata
                 .toList();
 
         return ResponseEntity.ok(yahoo.fetchBatch(tickerList));

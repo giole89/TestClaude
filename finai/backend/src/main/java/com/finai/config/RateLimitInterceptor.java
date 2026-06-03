@@ -87,11 +87,20 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     }
 
     private String extractIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+        // X-Forwarded-For è trusted solo se la connessione arriva da localhost/reverse proxy interno.
+        // In tutti gli altri casi usiamo getRemoteAddr() per evitare IP spoofing.
+        String remoteAddr = request.getRemoteAddr();
+        boolean isTrustedProxy = "127.0.0.1".equals(remoteAddr)
+                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
+                || remoteAddr.startsWith("172.") // Docker bridge networks
+                || remoteAddr.startsWith("10.");
+        if (isTrustedProxy) {
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                return forwarded.split(",")[0].trim();
+            }
         }
-        return request.getRemoteAddr();
+        return remoteAddr;
     }
 
     private record BucketEntry(long windowStart, AtomicInteger count) {}

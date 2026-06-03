@@ -18,6 +18,12 @@ spring:
   cache:
     type: simple   # Cache semplice in memoria (no Caffeine spec) per i test
 
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
 finai:
   anthropic:
     api-key: test-key
