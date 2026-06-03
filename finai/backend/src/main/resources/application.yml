@@ -41,6 +41,7 @@ spring:
       - search          # TTL 30s  — autocomplete ticker
       - ipo             # TTL 1h   — calendario IPO
       - ai              # TTL 30m  — risposte AI
+      - earnings        # TTL 6h   — date earnings (cambiano raramente)
     caffeine:
       spec: maximumSize=500,expireAfterWrite=60s
 

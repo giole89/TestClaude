@@ -1,13 +1,46 @@
 import { useState } from 'react'
 import { usePortfolio } from '@/hooks/usePortfolio'
+import { usePortfolioAnalytics } from '@/hooks/usePortfolioAnalytics'
+import { useEarnings } from '@/hooks/useEarnings'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { chatKey } from '@/store/useChatStore'
 import { useAppStore } from '@/store/useAppStore'
 import { formatNumber, formatPct } from '@/lib/formatters'
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function HhiBar({ hhi }: { hhi: number }) {
+  const pct = Math.min(hhi / 100, 100)
+  const color = hhi < 1500 ? 'var(--acc)' : hhi < 2500 ? '#f59e0b' : 'var(--red)'
+  const label = hhi < 1500 ? 'Diversificato' : hhi < 2500 ? 'Moderato' : 'Concentrato'
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)' }}>Concentrazione HHI</span>
+        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color }}>{label} ({Math.round(hhi)})</span>
+      </div>
+      <div style={{ height: 6, background: 'var(--s3)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.4s' }} />
+      </div>
+    </div>
+  )
+}
+
+function WeightBar({ pct }: { pct: number }) {
+  return (
+    <div style={{ height: 4, background: 'var(--s3)', borderRadius: 2, overflow: 'hidden', marginTop: 3 }}>
+      <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: 'var(--acc)', borderRadius: 2 }} />
+    </div>
+  )
+}
+
 export function PortfolioPage() {
   const { items, isLoading, isRefreshing, add, remove, refresh } = usePortfolio()
   const { setActiveTab } = useAppStore()
+  const hasItems = items.length > 0
+  const analytics = usePortfolioAnalytics(hasItems)
+  const tickers = items.map(i => i.ticker)
+  const earnings = useEarnings(tickers)
   const [tInput, setTInput] = useState('')
   const [qty, setQty] = useState('')
   const [load, setLoad] = useState('')
@@ -147,6 +180,157 @@ export function PortfolioPage() {
         {!isLoading && items.length === 0 && (
           <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)', fontFamily: 'Syne', fontSize: 15 }}>
             Il portafoglio è vuoto. Aggiungi la tua prima posizione.
+          </div>
+        )}
+
+        {/* ── Analytics Panel ─────────────────────────────────────────────── */}
+        {hasItems && analytics.data && (
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>Analytics portafoglio</div>
+
+            {/* KPI row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {[
+                {
+                  label: 'Miglior performer',
+                  value: analytics.data.bestTicker ?? '—',
+                  sub: analytics.data.bestGainPct != null ? formatPct(analytics.data.bestGainPct) : '',
+                  color: 'var(--acc)',
+                },
+                {
+                  label: 'Peggior performer',
+                  value: analytics.data.worstTicker ?? '—',
+                  sub: analytics.data.worstGainPct != null ? formatPct(analytics.data.worstGainPct) : '',
+                  color: (analytics.data.worstGainPct ?? 0) >= 0 ? 'var(--acc)' : 'var(--red)',
+                },
+                {
+                  label: 'Posizione dominante',
+                  value: analytics.data.topWeightTicker ?? '—',
+                  sub: analytics.data.topWeightPct != null ? `${formatNumber(analytics.data.topWeightPct, 1)}% del portafoglio` : '',
+                  color: 'var(--text)',
+                },
+              ].map(k => (
+                <div key={k.label} style={{ background: 'var(--s3)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{k.label}</div>
+                  <div style={{ fontFamily: 'JetBrains Mono', fontWeight: 700, fontSize: 15, color: k.color }}>{k.value}</div>
+                  {k.sub && <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: k.color, marginTop: 2 }}>{k.sub}</div>}
+                </div>
+              ))}
+            </div>
+
+            {/* HHI bar */}
+            <HhiBar hhi={analytics.data.concentrationHhi} />
+
+            {/* Breakdown peso posizioni */}
+            <div>
+              <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>Breakdown peso posizioni</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {analytics.data.positions.map(p => (
+                  <div key={p.ticker}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontFamily: 'JetBrains Mono', fontWeight: 700, fontSize: 12, color: 'var(--acc)', minWidth: 72 }}>{p.ticker}</span>
+                        <span style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)' }}>{p.name}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 16 }}>
+                        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--muted2)' }}>{formatNumber(p.weight, 1)}%</span>
+                        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: p.gainPct >= 0 ? 'var(--acc)' : 'var(--red)', minWidth: 60, textAlign: 'right' }}>
+                          {formatPct(p.gainPct)}
+                        </span>
+                        <span style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: p.contributionPct >= 0 ? 'var(--acc)' : 'var(--red)', minWidth: 64, textAlign: 'right' }}>
+                          {p.contributionPct >= 0 ? '+' : ''}{formatNumber(p.contributionPct, 2)}pp
+                        </span>
+                      </div>
+                    </div>
+                    <WeightBar pct={p.weight} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, marginTop: 6 }}>
+                <span style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Peso%</span>
+                <span style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', minWidth: 60, textAlign: 'right' }}>P&L%</span>
+                <span style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', minWidth: 64, textAlign: 'right' }}>Contribuzione</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Earnings Calendar ───────────────────────────────────────────── */}
+        {hasItems && (
+          <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+            <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 12 }}>
+              Prossimi earnings
+            </div>
+
+            {earnings.isLoading && (
+              <div style={{ color: 'var(--muted)', fontFamily: 'Syne', fontSize: 13, padding: '8px 0' }}>
+                Caricamento date earnings…
+              </div>
+            )}
+
+            {!earnings.isLoading && (earnings.data ?? []).length === 0 && (
+              <div style={{ color: 'var(--muted)', fontFamily: 'Syne', fontSize: 13, padding: '8px 0' }}>
+                Nessuna data earnings disponibile per i titoli in portafoglio.
+              </div>
+            )}
+
+            {!earnings.isLoading && (earnings.data ?? []).length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+                {(earnings.data ?? [])
+                  .filter(e => e.earningsDate != null)
+                  .sort((a, b) => (a.earningsDate ?? '').localeCompare(b.earningsDate ?? ''))
+                  .map(e => {
+                    const isUpcoming = e.earningsDate && e.earningsDate >= new Date().toISOString().slice(0, 10)
+                    return (
+                      <div key={e.ticker} style={{ background: 'var(--s3)', border: `1px solid ${isUpcoming ? 'var(--acc)' : 'var(--border)'}`, borderRadius: 8, padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <div>
+                            <span style={{ fontFamily: 'JetBrains Mono', fontWeight: 700, fontSize: 13, color: 'var(--acc)' }}>{e.ticker}</span>
+                            {e.quarter && <span style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginLeft: 8 }}>{e.quarter}</span>}
+                          </div>
+                          {isUpcoming && (
+                            <span style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--acc)', background: 'rgba(0,217,126,0.1)', borderRadius: 4, padding: '2px 6px' }}>
+                              Prossimo
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.companyName}
+                        </div>
+                        <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--text)', marginBottom: 8 }}>
+                          {e.earningsDate ?? '—'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                          {e.epsForward != null && (
+                            <div>
+                              <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>EPS fwd</div>
+                              <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: e.epsForward >= 0 ? 'var(--acc)' : 'var(--red)' }}>
+                                {e.epsForward >= 0 ? '+' : ''}{formatNumber(e.epsForward, 2)}
+                              </div>
+                            </div>
+                          )}
+                          {e.epsTrailing != null && (
+                            <div>
+                              <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>EPS ttm</div>
+                              <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: 'var(--text)' }}>
+                                {formatNumber(e.epsTrailing, 2)}
+                              </div>
+                            </div>
+                          )}
+                          {e.forwardPE != null && (
+                            <div>
+                              <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>P/E fwd</div>
+                              <div style={{ fontFamily: 'JetBrains Mono', fontSize: 12, color: 'var(--text)' }}>
+                                {formatNumber(e.forwardPE, 1)}x
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+            )}
           </div>
         )}
       </div>

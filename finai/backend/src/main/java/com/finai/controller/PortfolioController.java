@@ -1,7 +1,9 @@
 package com.finai.controller;
 
+import com.finai.dto.analytics.PortfolioAnalyticsDto;
 import com.finai.dto.portfolio.AddPortfolioItemRequest;
 import com.finai.dto.portfolio.PortfolioItemDto;
+import com.finai.service.PortfolioAnalyticsService;
 import com.finai.service.PortfolioService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,10 +23,13 @@ import java.util.Map;
 @Tag(name = "Portfolio", description = "Gestione portafoglio personale")
 public class PortfolioController {
 
-    private final PortfolioService service;
+    private final PortfolioService          service;
+    private final PortfolioAnalyticsService analyticsService;
 
-    public PortfolioController(PortfolioService service) {
-        this.service = service;
+    public PortfolioController(PortfolioService service,
+                               PortfolioAnalyticsService analyticsService) {
+        this.service          = service;
+        this.analyticsService = analyticsService;
     }
 
     @GetMapping
@@ -54,5 +59,15 @@ public class PortfolioController {
     @Operation(summary = "Aggiorna i prezzi correnti di tutte le posizioni")
     public ResponseEntity<List<PortfolioItemDto>> refresh() {
         return ResponseEntity.ok(service.refresh());
+    }
+
+    /**
+     * Calcola metriche aggregate del portafoglio:
+     * P&L, best/worst performer, concentrazione HHI, breakdown posizioni.
+     */
+    @GetMapping("/analytics")
+    @Operation(summary = "Analisi aggregata del portafoglio")
+    public ResponseEntity<PortfolioAnalyticsDto> analytics() {
+        return ResponseEntity.ok(analyticsService.compute());
     }
 }
