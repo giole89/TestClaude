@@ -74,7 +74,7 @@ public class YahooFinanceService {
     @CircuitBreaker(name = "yahooFinance", fallbackMethod = "quoteFallback")
     public QuoteDto fetchQuote(String ticker) {
         log.debug("Fetching quote per {}", ticker);
-        String url = baseUrlV7 + "/quote?symbols=" + ticker +
+        String url = baseUrlV7 + "/quote?symbols=" + encodeSymbol(ticker) +
                 "&fields=regularMarketPrice,regularMarketChange,regularMarketChangePercent," +
                 "regularMarketVolume,marketCap,trailingPE,fiftyTwoWeekHigh,fiftyTwoWeekLow," +
                 "longName,shortName,fullExchangeName,currency,ytdReturn,fiftyTwoWeekChangePercent";
@@ -103,7 +103,7 @@ public class YahooFinanceService {
     @CircuitBreaker(name = "yahooFinance", fallbackMethod = "batchFallback")
     public List<QuoteDto> fetchBatch(List<String> tickers) {
         if (tickers == null || tickers.isEmpty()) return List.of();
-        String symbols = String.join(",", tickers);
+        String symbols = tickers.stream().map(this::encodeSymbol).collect(java.util.stream.Collectors.joining(","));
         log.debug("Fetching batch per {} ticker: {}", tickers.size(), symbols);
 
         String url = baseUrlV7 + "/quote?symbols=" + symbols +
@@ -143,7 +143,7 @@ public class YahooFinanceService {
     @CircuitBreaker(name = "yahooFinance", fallbackMethod = "historyFallback")
     public List<HistoryPoint> fetchHistory(String ticker, String range) {
         log.debug("Fetching history {} range={}", ticker, range);
-        String url = baseUrlV8 + "/chart/" + ticker + "?interval=1d&range=" + range;
+        String url = baseUrlV8 + "/chart/" + encodeSymbol(ticker) + "?interval=1d&range=" + range;
         return parseHistory(fetch(url));
     }
 
@@ -194,6 +194,16 @@ public class YahooFinanceService {
     }
 
     // ─────────────────────────────────── Parsing privato ─────────────────────
+
+    /**
+     * URL-encode di un simbolo. Necessario perché alcuni ticker Yahoo
+     * contengono caratteri non validi in un URI grezzo (es. {@code ^GSPC},
+     * {@code EURUSD=X}), che fanno fallire {@code URI.create()} con
+     * {@code IllegalArgumentException: Illegal character}.
+     */
+    private String encodeSymbol(String symbol) {
+        return java.net.URLEncoder.encode(symbol, java.nio.charset.StandardCharsets.UTF_8);
+    }
 
     private JsonNode fetch(String url) {
         try {
