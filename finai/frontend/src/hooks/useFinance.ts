@@ -67,6 +67,24 @@ export interface Allocation {
   liquidityPct: number
 }
 
+export interface MarketSnapshot {
+  sp500ChangePct: number | null
+  vixLevel: number | null
+  sentiment: string
+  note: string
+}
+
+export interface PortfolioLine {
+  ticker: string
+  name: string
+  assetClass: string
+  weightPct: number
+  price: number | null
+  dayChangePct: number | null
+  currency: string | null
+  rationale: string
+}
+
 export interface Recommendation {
   profileLabel: string
   allocation: Allocation
@@ -74,6 +92,8 @@ export interface Recommendation {
   suggestedInstruments: string[]
   goal: string
   horizon: string
+  marketSnapshot: MarketSnapshot | null
+  samplePortfolio: PortfolioLine[]
 }
 
 const TRANSACTIONS_KEY = ['financeTransactions']

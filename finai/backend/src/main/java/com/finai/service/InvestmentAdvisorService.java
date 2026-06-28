@@ -84,6 +84,6 @@ public class InvestmentAdvisorService {
                 profile.allocation().equityPct(), profile.allocation().bondPct(), profile.allocation().liquidityPct()
         );
 
-        return new RecommendationDto(profile.label(), profile.allocation(), summary, profile.instruments(), goal, horizon);
+        return new RecommendationDto(profile.label(), profile.allocation(), summary, profile.instruments(), goal, horizon, null, List.of());
     }
 }

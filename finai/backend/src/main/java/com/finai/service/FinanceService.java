@@ -36,6 +36,7 @@ public class FinanceService {
     private final TransactionCategorizer    categorizer;
     private final BudgetService             budgetService;
     private final InvestmentAdvisorService  advisorService;
+    private final PortfolioBuilderService   portfolioBuilder;
 
     public FinanceService(BankTransactionRepository transactionRepo,
                           FixedExpenseRepository fixedExpenseRepo,
@@ -43,7 +44,8 @@ public class FinanceService {
                           StatementParserService parser,
                           TransactionCategorizer categorizer,
                           BudgetService budgetService,
-                          InvestmentAdvisorService advisorService) {
+                          InvestmentAdvisorService advisorService,
+                          PortfolioBuilderService portfolioBuilder) {
         this.transactionRepo = transactionRepo;
         this.fixedExpenseRepo = fixedExpenseRepo;
         this.profileRepo = profileRepo;
@@ -51,6 +53,7 @@ public class FinanceService {
         this.categorizer = categorizer;
         this.budgetService = budgetService;
         this.advisorService = advisorService;
+        this.portfolioBuilder = portfolioBuilder;
     }
 
     // ─────────────────────────────────── Estratti conto ──────────────────────
@@ -150,7 +153,7 @@ public class FinanceService {
         profile.setHorizon(req.horizon().toUpperCase());
         profile.setUpdatedAt(Instant.now());
         profileRepo.save(profile);
-        return advisorService.recommend(profile);
+        return withMarketPortfolio(advisorService.recommend(profile));
     }
 
     public RecommendationDto getRecommendation() {
@@ -158,7 +161,13 @@ public class FinanceService {
         if (profile.getGoal() == null || profile.getHorizon() == null) {
             throw new FinaiException("Questionario non ancora completato", 404);
         }
-        return advisorService.recommend(profile);
+        return withMarketPortfolio(advisorService.recommend(profile));
+    }
+
+    private RecommendationDto withMarketPortfolio(RecommendationDto base) {
+        PortfolioBuilderService.Result result = portfolioBuilder.build(base.allocation(), base.goal());
+        return new RecommendationDto(base.profileLabel(), base.allocation(), base.summary(), base.suggestedInstruments(),
+                base.goal(), base.horizon(), result.snapshot(), result.portfolio());
     }
 
     private InvestorProfile loadProfile() {

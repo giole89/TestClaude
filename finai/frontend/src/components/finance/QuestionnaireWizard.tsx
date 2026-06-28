@@ -1,6 +1,42 @@
 import { useState } from 'react'
-import { useFinance, InvestmentGoal, InvestmentHorizon } from '@/hooks/useFinance'
-import { formatNumber } from '@/lib/formatters'
+import { useFinance, InvestmentGoal, InvestmentHorizon, PortfolioLine } from '@/hooks/useFinance'
+import { formatNumber, colorForChange } from '@/lib/formatters'
+
+const ASSET_CLASS_COLOR: Record<string, string> = {
+  'Azionario': 'var(--acc)',
+  'Obbligazionario': 'var(--acc3)',
+  'Liquidità': 'var(--muted2)',
+}
+
+function PortfolioTable({ lines }: { lines: PortfolioLine[] }) {
+  if (lines.length === 0) return null
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 11, color: 'var(--muted2)', marginBottom: 6 }}>
+        Portafoglio verosimile di oggi
+      </div>
+      <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+        {lines.map(l => (
+          <div key={l.ticker} style={{
+            display: 'grid', gridTemplateColumns: '10px 70px 1fr 50px 90px', gap: 8, alignItems: 'center',
+            padding: '8px 12px', borderBottom: '1px solid var(--border)', fontFamily: 'JetBrains Mono', fontSize: 11,
+          }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: ASSET_CLASS_COLOR[l.assetClass] ?? 'var(--muted)' }} />
+            <span style={{ color: 'var(--text)', fontWeight: 700 }}>{l.ticker}</span>
+            <span style={{ color: 'var(--muted2)', fontFamily: 'Syne', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.rationale}>
+              {l.name}
+            </span>
+            <span style={{ textAlign: 'right', color: 'var(--text)' }}>{formatNumber(l.weightPct, 1)}%</span>
+            <span style={{ textAlign: 'right', color: l.dayChangePct != null ? colorForChange(l.dayChangePct) : 'var(--muted)' }}>
+              {l.price != null ? `${formatNumber(l.price, 2)} ${l.currency ?? ''}` : 'n/d'}
+              {l.dayChangePct != null && ` (${l.dayChangePct > 0 ? '+' : ''}${formatNumber(l.dayChangePct, 2)}%)`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 const GOAL_OPTIONS: Array<{ value: InvestmentGoal; label: string; desc: string }> = [
   { value: 'EMERGENCY', label: '🛟 Fondo di emergenza', desc: 'Liquidità da usare in caso di imprevisti' },
@@ -72,6 +108,18 @@ function RecommendationCard() {
       <ul style={{ margin: 0, paddingLeft: 18, fontFamily: 'Syne', fontSize: 12, color: 'var(--text)' }}>
         {recommendation.suggestedInstruments.map(i => <li key={i} style={{ marginBottom: 4 }}>{i}</li>)}
       </ul>
+
+      {recommendation.marketSnapshot && (
+        <div style={{
+          marginTop: 14, padding: '10px 12px', borderRadius: 8, background: 'var(--s3)',
+          fontFamily: 'Syne', fontSize: 12, color: 'var(--muted2)', lineHeight: 1.5,
+        }}>
+          <span style={{ fontWeight: 700, color: 'var(--text)' }}>Mercato oggi: </span>
+          {recommendation.marketSnapshot.note}
+        </div>
+      )}
+
+      <PortfolioTable lines={recommendation.samplePortfolio} />
     </div>
   )
 }

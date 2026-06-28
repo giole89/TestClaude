@@ -9,5 +9,7 @@ public record RecommendationDto(
         String summary,
         List<String> suggestedInstruments,
         String goal,
-        String horizon
+        String horizon,
+        MarketSnapshotDto marketSnapshot,
+        List<PortfolioLineDto> samplePortfolio
 ) {}
