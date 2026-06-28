@@ -69,7 +69,7 @@ public class YahooFinanceService {
      * @param ticker simbolo Yahoo Finance (es. "AAPL", "ISP.MI")
      * @return QuoteDto, oppure null se il circuit breaker è aperto
      */
-    @Cacheable(value = "quotes", key = "#ticker.toUpperCase()")
+    @Cacheable(value = "quotes", key = "#ticker.toUpperCase()", unless = "#result == null")
     @Retry(name = "yahooFinance")
     @CircuitBreaker(name = "yahooFinance", fallbackMethod = "quoteFallback")
     public QuoteDto fetchQuote(String ticker) {
@@ -98,7 +98,7 @@ public class YahooFinanceService {
      * @param tickers lista di simboli (max ~20 per chiamata Yahoo)
      * @return lista di QuoteDto (eventuali ticker non trovati vengono omessi)
      */
-    @Cacheable(value = "batch", key = "#tickers.stream().sorted().collect(T(java.util.stream.Collectors).joining(','))")
+    @Cacheable(value = "batch", key = "#tickers.stream().sorted().collect(T(java.util.stream.Collectors).joining(','))", unless = "#result.isEmpty()")
     @Retry(name = "yahooFinance")
     @CircuitBreaker(name = "yahooFinance", fallbackMethod = "batchFallback")
     public List<QuoteDto> fetchBatch(List<String> tickers) {
