@@ -1,0 +1,141 @@
+import { useState } from 'react'
+import { useFinance, InvestmentGoal, InvestmentHorizon } from '@/hooks/useFinance'
+import { formatNumber } from '@/lib/formatters'
+
+const GOAL_OPTIONS: Array<{ value: InvestmentGoal; label: string; desc: string }> = [
+  { value: 'EMERGENCY', label: '🛟 Fondo di emergenza', desc: 'Liquidità da usare in caso di imprevisti' },
+  { value: 'MAJOR_PURCHASE', label: '🏠 Grande acquisto', desc: 'Casa, auto, o altra spesa importante futura' },
+  { value: 'RETIREMENT', label: '🌅 Pensione / lungo termine', desc: 'Integrare la pensione o costruire capitale nel tempo' },
+  { value: 'GROWTH', label: '📈 Crescita del capitale', desc: 'Far crescere i risparmi senza un obiettivo specifico' },
+  { value: 'OTHER', label: '✍️ Altro', desc: 'Un obiettivo personale diverso da questi' },
+]
+
+const HORIZON_OPTIONS: Array<{ value: InvestmentHorizon; label: string }> = [
+  { value: 'UNDER_1Y', label: 'Meno di 1 anno' },
+  { value: 'Y1_3', label: '1 - 3 anni' },
+  { value: 'Y3_5', label: '3 - 5 anni' },
+  { value: 'Y5_10', label: '5 - 10 anni' },
+  { value: 'OVER_10Y', label: 'Oltre 10 anni' },
+]
+
+function OptionCard({ selected, label, desc, onClick }: { selected: boolean; label: string; desc?: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        textAlign: 'left', padding: '12px 14px', borderRadius: 10,
+        border: `1px solid ${selected ? 'var(--acc)' : 'var(--border)'}`,
+        background: selected ? 'rgba(110,231,183,0.08)' : 'var(--s3)',
+        cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2,
+      }}
+    >
+      <span style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{label}</span>
+      {desc && <span style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)' }}>{desc}</span>}
+    </button>
+  )
+}
+
+function RecommendationCard() {
+  const { recommendation } = useFinance()
+  if (!recommendation) return null
+  const { allocation } = recommendation
+
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--acc)', borderRadius: 12, padding: '16px 20px', marginTop: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div style={{
+          padding: '6px 14px', borderRadius: 8, background: 'var(--acc)', color: '#07080a',
+          fontFamily: 'Syne', fontWeight: 800, fontSize: 13,
+        }}>
+          {recommendation.profileLabel}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, height: 18, borderRadius: 6, overflow: 'hidden' }}>
+        <div style={{ width: `${allocation.equityPct}%`, background: 'var(--acc)' }} title={`Azionario ${allocation.equityPct}%`} />
+        <div style={{ width: `${allocation.bondPct}%`, background: 'var(--acc3)' }} title={`Obbligazionario ${allocation.bondPct}%`} />
+        <div style={{ width: `${allocation.liquidityPct}%`, background: 'var(--muted2)' }} title={`Liquidità ${allocation.liquidityPct}%`} />
+      </div>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 14, fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)' }}>
+        <span>● Azionario {formatNumber(allocation.equityPct, 0)}%</span>
+        <span style={{ color: 'var(--acc3)' }}>● Obbligazionario {formatNumber(allocation.bondPct, 0)}%</span>
+        <span>● Liquidità {formatNumber(allocation.liquidityPct, 0)}%</span>
+      </div>
+
+      <p style={{ fontFamily: 'Syne', fontSize: 13, color: 'var(--muted2)', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+        {recommendation.summary}
+      </p>
+
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 11, color: 'var(--muted2)', marginBottom: 6 }}>
+        Strumenti suggeriti
+      </div>
+      <ul style={{ margin: 0, paddingLeft: 18, fontFamily: 'Syne', fontSize: 12, color: 'var(--text)' }}>
+        {recommendation.suggestedInstruments.map(i => <li key={i} style={{ marginBottom: 4 }}>{i}</li>)}
+      </ul>
+    </div>
+  )
+}
+
+export function QuestionnaireWizard() {
+  const { profile, submitQuestionnaire, isSubmittingQuestionnaire } = useFinance()
+  const [goal, setGoal] = useState<InvestmentGoal | null>(profile?.goal ?? null)
+  const [horizon, setHorizon] = useState<InvestmentHorizon | null>(profile?.horizon ?? null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async () => {
+    if (!goal || !horizon) return
+    setError(null)
+    try {
+      await submitQuestionnaire({ goal, horizon })
+    } catch (e: any) {
+      setError(e?.response?.data?.error || 'Impossibile calcolare il consiglio')
+    }
+  }
+
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>
+        Questionario: a cosa serve il tuo investimento?
+      </div>
+      <div style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+        Rispondi per ricevere un suggerimento sul tipo di investimento più adatto alla quota di risparmio investibile.
+      </div>
+
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--muted2)', marginBottom: 8 }}>
+        1. A cosa serviranno i soldi che investi?
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginBottom: 16 }}>
+        {GOAL_OPTIONS.map(o => (
+          <OptionCard key={o.value} selected={goal === o.value} label={o.label} desc={o.desc} onClick={() => setGoal(o.value)} />
+        ))}
+      </div>
+
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--muted2)', marginBottom: 8 }}>
+        2. Tra quanto tempo prevedi di averne bisogno?
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 16 }}>
+        {HORIZON_OPTIONS.map(o => (
+          <OptionCard key={o.value} selected={horizon === o.value} label={o.label} onClick={() => setHorizon(o.value)} />
+        ))}
+      </div>
+
+      {error && (
+        <div style={{ color: 'var(--red)', fontFamily: 'Syne', fontSize: 12, marginBottom: 10 }}>{error}</div>
+      )}
+
+      <button
+        onClick={handleSubmit}
+        disabled={!goal || !horizon || isSubmittingQuestionnaire}
+        style={{
+          padding: '10px 20px', borderRadius: 8, background: 'var(--acc)', border: 'none',
+          color: '#07080a', fontFamily: 'Syne', fontWeight: 700, fontSize: 13,
+          cursor: (!goal || !horizon) ? 'default' : 'pointer', opacity: (!goal || !horizon) ? 0.5 : 1,
+        }}
+      >
+        {isSubmittingQuestionnaire ? 'Calcolo…' : 'Ottieni il consiglio'}
+      </button>
+
+      <RecommendationCard />
+    </div>
+  )
+}

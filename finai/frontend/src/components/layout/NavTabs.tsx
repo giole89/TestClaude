@@ -8,6 +8,7 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'longterm', label: 'Lungo Termine', icon: '🌱' },
   { id: 'portfolio', label: 'Portafoglio', icon: '💼' },
   { id: 'simulator', label: 'Simulazione', icon: '🧪' },
+  { id: 'finance', label: 'Finanza Personale', icon: '💰' },
   { id: 'suggested', label: 'Suggeriti', icon: '🎯' },
   { id: 'ipo', label: 'IPO', icon: '🏛️' },
   { id: 'screener', label: 'Screener', icon: '🔍' },

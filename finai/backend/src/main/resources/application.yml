@@ -64,6 +64,12 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
 
+  # ── Upload estratti conto (PDF / Excel) ──────────────────────────────────
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
 # ── Server ──────────────────────────────────────────────────────────────────
 server:
   port: ${PORT:3001}

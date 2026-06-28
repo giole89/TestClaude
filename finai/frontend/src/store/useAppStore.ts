@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type TabId = 'market' | 'analyze' | 'compare' | 'alerts' | 'longterm' | 'portfolio' | 'suggested' | 'ipo' | 'guide' | 'screener' | 'watchlist' | 'macro' | 'simulator'
+export type TabId = 'market' | 'analyze' | 'compare' | 'alerts' | 'longterm' | 'portfolio' | 'suggested' | 'ipo' | 'guide' | 'screener' | 'watchlist' | 'macro' | 'simulator' | 'finance'
 
 interface AppState {
   activeTab: TabId
