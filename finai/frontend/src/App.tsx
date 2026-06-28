@@ -11,6 +11,7 @@ const ComparePage = lazy(() => import('@/pages/ComparePage').then(m => ({ defaul
 const AlertsPage = lazy(() => import('@/pages/AlertsPage').then(m => ({ default: m.AlertsPage })))
 const LongTermPage = lazy(() => import('@/pages/LongTermPage').then(m => ({ default: m.LongTermPage })))
 const PortfolioPage = lazy(() => import('@/pages/PortfolioPage').then(m => ({ default: m.PortfolioPage })))
+const SimulatorPage = lazy(() => import('@/pages/SimulatorPage').then(m => ({ default: m.SimulatorPage })))
 const SuggestedPage = lazy(() => import('@/pages/SuggestedPage').then(m => ({ default: m.SuggestedPage })))
 const IPOPage = lazy(() => import('@/pages/IPOPage').then(m => ({ default: m.IPOPage })))
 const GuidePage = lazy(() => import('@/pages/GuidePage').then(m => ({ default: m.GuidePage })))
@@ -40,6 +41,7 @@ function TabRouter() {
       {activeTab === 'alerts' && <AlertsPage />}
       {activeTab === 'longterm' && <LongTermPage />}
       {activeTab === 'portfolio' && <PortfolioPage />}
+      {activeTab === 'simulator' && <SimulatorPage />}
       {activeTab === 'suggested' && <SuggestedPage />}
       {activeTab === 'ipo' && <IPOPage />}
       {activeTab === 'screener' && <ScreenerPage />}

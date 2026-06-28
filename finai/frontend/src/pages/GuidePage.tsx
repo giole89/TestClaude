@@ -267,6 +267,7 @@ const CONTENT: Record<string, React.ReactNode> = {
         ['🔔 Alert', 'Imposta alert sui prezzi — ricevi notifiche quando le condizioni si verificano.'],
         ['🌱 Lungo Termine', 'Score 0-100 per valutare se un titolo è adatto per DCA a lungo termine.'],
         ['💼 Portafoglio', 'Traccia il portafoglio con P&L in tempo reale. Include: dividendi, benchmark vs S&P 500, simulatore DCA, stima gain fiscale (26% italiano), matrice di correlazione e news aggiornate.'],
+        ['🧪 Simulazione', 'Ambiente di paper trading con moneta virtuale: compra e vendi titoli reali ai prezzi live senza rischio, per studiare l\'andamento di un investimento prima di farlo davvero.'],
         ['🎯 Suggeriti', 'Portafogli modello pre-costruiti per 4 profili di rischio (Conservativo, Bilanciato, Crescita, Aggressivo). Chiedi all\'AI un portafoglio personalizzato.'],
         ['🌐 Macro', 'Dashboard macroeconomica: indici globali (S&P 500, Nasdaq, DAX…), valute, commodity, crypto (BTC, ETH) e tassi USA (10Y/30Y). Sentiment aggregato Risk On/Off.'],
         ['🔍 Screener', 'Filtra l\'universo di oltre 170 titoli per variazione giornaliera, YTD e posizione nel range 52 settimane. Trova opportunità rapidamente.'],
