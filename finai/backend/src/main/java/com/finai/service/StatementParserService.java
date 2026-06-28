@@ -49,13 +49,20 @@ public class StatementParserService {
             DateTimeFormatter.ofPattern("dd/MM/yy")
     );
 
-    private static final Pattern PDF_LINE = Pattern.compile(
-            "^\\s*(\\d{1,2}[/.\\-]\\d{1,2}[/.\\-]\\d{2,4})\\s+(.+?)\\s+([+-]?\\d{1,3}(?:[.,]\\d{3})*[.,]\\d{2})\\s*(?:EUR|€)?\\s*$"
-    );
+    /** Riga composta solo da una data, senza descrizione/importo: tipico di estratti conto con layout a tabella
+     *  dove ogni cella viene estratta dal PDF su una riga separata. */
+    private static final Pattern PDF_DATE_ONLY = Pattern.compile("^(\\d{1,2}[/.\\-]\\d{1,2}(?:[/.\\-]\\d{2,4})?)$");
+
+    /** Riga composta solo da un importo, senza data/descrizione (cella di una tabella). */
+    private static final Pattern PDF_AMOUNT_ONLY = Pattern.compile("^[+-]?(?:\\d{1,3}(?:[.,]\\d{3})*|\\d+)[.,]\\d{2}\\s*(?:EUR|€)?$");
 
     private static final Set<String> INCOME_KEYWORDS = Set.of(
             "stipendio", "accredito", "bonifico in entrata", "bonifico a vostro favore",
-            "versamento", "rimborso", "pensione", "salary", "incasso"
+            "versamento", "rimborso", "pensione", "salary", "incasso", "entrata", "entrate"
+    );
+
+    private static final Set<String> OPENING_BALANCE_KEYWORDS = Set.of(
+            "saldo iniziale", "saldo precedente", "saldo di apertura", "saldo al", "opening balance"
     );
 
     /**
@@ -237,27 +244,181 @@ public class StatementParserService {
     // ─────────────────────────────────── PDF ───────────────────────────────────
 
     List<RawTransaction> parsePdf(InputStream input) throws IOException {
-        List<RawTransaction> results = new ArrayList<>();
         try (PDDocument doc = Loader.loadPDF(input.readAllBytes())) {
             String text = new PDFTextStripper().getText(doc);
-            for (String line : text.split("\\r?\\n")) {
-                Matcher m = PDF_LINE.matcher(line);
-                if (!m.matches()) continue;
+            List<String> lines = Arrays.stream(text.split("\\r?\\n"))
+                    .map(String::trim).filter(l -> !l.isEmpty()).toList();
 
-                LocalDate date = parseDateText(m.group(1));
-                String description = m.group(2).trim();
-                BigDecimal amount = parseAmountText(m.group(3));
-                if (date == null || amount == null) continue;
+            List<RawTransaction> rows = parsePdfRows(lines);
+            if (!rows.isEmpty()) return rows;
 
-                if (!hasExplicitSign(m.group(3)) && !description.startsWith("-")) {
-                    boolean isIncome = INCOME_KEYWORDS.stream()
-                            .anyMatch(k -> description.toLowerCase(Locale.ROOT).contains(k));
-                    amount = isIncome ? amount.abs() : amount.abs().negate();
+            // Fallback: estratti conto dove PDFBox estrae ogni cella (data / descrizione /
+            // importo / saldo) su una riga separata invece che sulla stessa riga.
+            return parsePdfTableLayout(lines);
+        }
+    }
+
+    private static final Pattern DATE_PREFIX = Pattern.compile(
+            "^(\\d{1,2}[/.\\-]\\d{1,2}(?:[/.\\-]\\d{2,4})?)\\s+(.*)$");
+    private static final Pattern AMOUNT_TOKEN = Pattern.compile(
+            "^[+-]?(?:\\d{1,3}(?:[.,]\\d{3})*|\\d+)[.,]\\d{2}$");
+
+    private record PdfRow(LocalDate date, String description, List<String> amountTokens) {}
+
+    /**
+     * Estratti conto "a riga" (una riga di testo per movimento): copre sia il formato semplice
+     * "data descrizione importo[+segno]" sia quello a colonne "data descrizione entrata/uscita
+     * saldo", dove PDFBox estrae l'intera riga della tabella come un'unica stringa con uno o due
+     * numeri finali.
+     */
+    private List<RawTransaction> parsePdfRows(List<String> lines) {
+        List<PdfRow> rows = new ArrayList<>();
+        for (String line : lines) {
+            PdfRow row = parseRow(line);
+            if (row != null) rows.add(row);
+        }
+        if (rows.isEmpty()) return List.of();
+
+        boolean hasBalanceColumn = rows.stream().anyMatch(r -> r.amountTokens().size() >= 2);
+
+        List<RawTransaction> results = new ArrayList<>();
+        BigDecimal runningBalance = null;
+        for (int idx = 0; idx < rows.size(); idx++) {
+            PdfRow row = rows.get(idx);
+            List<String> amounts = row.amountTokens();
+
+            if (amounts.size() == 1) {
+                String token = amounts.get(0);
+                BigDecimal value = parseAmountText(token);
+                if (value == null) continue;
+
+                if (hasExplicitSign(token)) {
+                    results.add(new RawTransaction(row.date(), row.description(), value));
+                    continue;
                 }
-                results.add(new RawTransaction(date, description, amount));
+                boolean isOpeningBalance = hasBalanceColumn && (idx == 0 || isOpeningBalanceDescription(row.description()));
+                if (isOpeningBalance) {
+                    runningBalance = value;
+                    continue;
+                }
+                BigDecimal signed = isIncomeDescription(row.description()) ? value.abs() : value.abs().negate();
+                results.add(new RawTransaction(row.date(), row.description(), signed));
+                continue;
             }
+
+            // Due o più numeri sulla riga: l'ultimo è il saldo, il penultimo il movimento.
+            BigDecimal movement = parseAmountText(amounts.get(amounts.size() - 2));
+            BigDecimal newBalance = parseAmountText(amounts.get(amounts.size() - 1));
+            if (movement == null || newBalance == null) continue;
+            movement = movement.abs();
+
+            BigDecimal signed = runningBalance != null
+                    ? (newBalance.compareTo(runningBalance) >= 0 ? movement : movement.negate())
+                    : (isIncomeDescription(row.description()) ? movement : movement.negate());
+            runningBalance = newBalance;
+            results.add(new RawTransaction(row.date(), row.description(), signed));
         }
         return results;
+    }
+
+    /** Estrae data, descrizione e gli importi finali (1 o 2) da un'intera riga di testo. */
+    private PdfRow parseRow(String line) {
+        Matcher dm = DATE_PREFIX.matcher(line);
+        if (!dm.matches()) return null;
+        LocalDate date = parseDateText(dm.group(1));
+        if (date == null) return null;
+
+        String[] tokens = dm.group(2).trim().split("\\s+");
+        List<String> amountTokens = new ArrayList<>();
+        int end = tokens.length;
+        while (end > 0) {
+            String tok = tokens[end - 1];
+            if (tok.equalsIgnoreCase("EUR") || tok.equals("€")) { end--; continue; }
+            if (AMOUNT_TOKEN.matcher(tok).matches()) { amountTokens.add(0, tok); end--; continue; }
+            break;
+        }
+        if (amountTokens.isEmpty() || amountTokens.size() > 2) return null;
+
+        String description = String.join(" ", Arrays.asList(tokens).subList(0, end)).trim();
+        if (description.isEmpty()) description = "Movimento";
+        return new PdfRow(date, description, amountTokens);
+    }
+
+    private record PdfBlock(LocalDate date, String description, List<BigDecimal> amounts) {}
+
+    /**
+     * Estratti conto "a tabella" (data / descrizione / entrate / uscite / saldo), dove ogni
+     * cella diventa una riga separata nel testo estratto. Raggruppa le righe a partire da
+     * ogni data trovata, raccoglie la descrizione e gli importi successivi, e deduce il segno
+     * del movimento confrontando il saldo corrente con quello della riga precedente (quando
+     * è presente una colonna saldo), altrimenti tramite parole chiave di entrata/uscita.
+     */
+    private List<RawTransaction> parsePdfTableLayout(List<String> lines) {
+        List<PdfBlock> blocks = new ArrayList<>();
+        int i = 0;
+        while (i < lines.size()) {
+            String line = lines.get(i);
+            if (!PDF_DATE_ONLY.matcher(line).matches()) { i++; continue; }
+            LocalDate date = parseDateText(line);
+            i++;
+            if (date == null) continue;
+
+            String description = "Movimento";
+            if (i < lines.size()
+                    && !PDF_AMOUNT_ONLY.matcher(lines.get(i)).matches()
+                    && !PDF_DATE_ONLY.matcher(lines.get(i)).matches()) {
+                description = lines.get(i);
+                i++;
+            }
+
+            List<BigDecimal> amounts = new ArrayList<>();
+            while (i < lines.size() && PDF_AMOUNT_ONLY.matcher(lines.get(i)).matches()) {
+                BigDecimal amount = parseAmountText(lines.get(i));
+                if (amount != null) amounts.add(amount);
+                i++;
+            }
+            if (!amounts.isEmpty()) blocks.add(new PdfBlock(date, description, amounts));
+        }
+
+        boolean hasBalanceColumn = blocks.stream().anyMatch(b -> b.amounts().size() >= 2);
+
+        List<RawTransaction> results = new ArrayList<>();
+        BigDecimal runningBalance = null;
+        for (int idx = 0; idx < blocks.size(); idx++) {
+            PdfBlock block = blocks.get(idx);
+
+            if (block.amounts().size() == 1) {
+                BigDecimal value = block.amounts().get(0);
+                boolean isOpeningBalance = hasBalanceColumn
+                        && (idx == 0 || isOpeningBalanceDescription(block.description()));
+                if (isOpeningBalance) {
+                    runningBalance = value;
+                    continue;
+                }
+                BigDecimal signed = isIncomeDescription(block.description()) ? value.abs() : value.abs().negate();
+                results.add(new RawTransaction(block.date(), block.description(), signed));
+                continue;
+            }
+
+            BigDecimal movement = block.amounts().get(block.amounts().size() - 2).abs();
+            BigDecimal newBalance = block.amounts().get(block.amounts().size() - 1);
+            BigDecimal signed = runningBalance != null
+                    ? (newBalance.compareTo(runningBalance) >= 0 ? movement : movement.negate())
+                    : (isIncomeDescription(block.description()) ? movement : movement.negate());
+            runningBalance = newBalance;
+            results.add(new RawTransaction(block.date(), block.description(), signed));
+        }
+        return results;
+    }
+
+    private boolean isIncomeDescription(String description) {
+        String lower = description.toLowerCase(Locale.ROOT);
+        return INCOME_KEYWORDS.stream().anyMatch(lower::contains);
+    }
+
+    private boolean isOpeningBalanceDescription(String description) {
+        String lower = description.toLowerCase(Locale.ROOT);
+        return OPENING_BALANCE_KEYWORDS.stream().anyMatch(lower::contains);
     }
 
     private boolean hasExplicitSign(String amountText) {
@@ -266,11 +427,25 @@ public class StatementParserService {
 
     // ─────────────────────────────────── Helpers ───────────────────────────────
 
+    private static final Pattern DATE_NO_YEAR = Pattern.compile("^(\\d{1,2})[/.\\-](\\d{1,2})$");
+
     private LocalDate parseDateText(String text) {
         for (DateTimeFormatter fmt : DATE_FORMATS) {
             try {
                 return LocalDate.parse(text, fmt);
             } catch (DateTimeParseException ignored) { }
+        }
+        // Data senza anno (es. "01/07"): assume l'anno corrente, oppure quello precedente
+        // se la data risulterebbe nel futuro (tipico di estratti conto a cavallo di fine anno).
+        Matcher noYear = DATE_NO_YEAR.matcher(text.trim());
+        if (noYear.matches()) {
+            try {
+                int day = Integer.parseInt(noYear.group(1));
+                int month = Integer.parseInt(noYear.group(2));
+                LocalDate candidate = LocalDate.of(LocalDate.now().getYear(), month, day);
+                if (candidate.isAfter(LocalDate.now())) candidate = candidate.minusYears(1);
+                return candidate;
+            } catch (Exception ignored) { }
         }
         return null;
     }
