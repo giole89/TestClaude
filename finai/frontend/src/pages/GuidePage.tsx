@@ -10,6 +10,8 @@ const SECTIONS = [
   { id: 'analisi', icon: '🔍', title: 'Come Analizzare' },
   { id: 'dca', icon: '📅', title: 'Strategia DCA' },
   { id: 'portafoglio', icon: '🗂️', title: 'Costruire un Portafoglio' },
+  { id: 'finanzapersonale', icon: '💰', title: 'Finanza Personale' },
+  { id: 'simulazione', icon: '🧪', title: 'Simulazione' },
   { id: 'errori', icon: '🚫', title: 'Errori Comuni' },
   { id: 'finai', icon: '🚀', title: 'Come Usare FINAI' },
 ]
@@ -237,6 +239,43 @@ const CONTENT: Record<string, React.ReactNode> = {
       </div>
       <h3>Regola d'oro della diversificazione</h3>
       <p>Non mettere più del 5% in un singolo titolo, non più del 20% in un singolo settore, non più del 30% in un singolo paese.</p>
+    </div>
+  ),
+  finanzapersonale: (
+    <div>
+      <h2>💰 Finanza Personale</h2>
+      <p>Il modulo di finanza personale legge i tuoi movimenti bancari, calcola un budget previsionale per il mese successivo e suggerisce un'allocazione di investimento in base al tuo profilo.</p>
+      <h3>1. Importa l'estratto conto</h3>
+      <ul>
+        <li>Carica un file <strong>PDF</strong> o <strong>Excel</strong> (.xlsx/.xls) — formati tipici delle principali banche italiane</li>
+        <li>FINAI riconosce automaticamente data, descrizione e importo di ogni movimento (anche in PDF senza una tabella ben strutturata)</li>
+        <li>I movimenti già presenti (stessa data, descrizione e importo) vengono scartati come duplicati e segnalati a parte — utile se carichi più volte lo stesso periodo o estratti che si sovrappongono</li>
+        <li>Le righe non riconosciute vengono semplicemente saltate, senza bloccare l'importazione del resto</li>
+      </ul>
+      <h3>2. Categorizzazione automatica</h3>
+      <p>Ogni movimento viene classificato come <strong>entrata</strong> (stipendio, pensione, rimborso, interessi, bonifico ricevuto) o <strong>spesa variabile</strong>, con una categoria specifica (alimentari, trasporti, casa e utenze, salute, abbonamenti, tempo libero, ristorazione, shopping, ecc.). Se la categoria non è corretta, puoi modificarla manualmente dall'elenco movimenti — la modifica resta salvata e non viene sovrascritta da import successivi.</p>
+      <h3>3. Spese fisse</h3>
+      <p>Inserisci manualmente i costi ricorrenti che non passano (o passano in modo irregolare) dall'estratto conto: affitto, mutuo, utenze, abbonamenti, assicurazioni. Sono la base fissa su cui il budget del mese successivo viene calcolato.</p>
+      <h3>4. Budget previsionale del mese successivo</h3>
+      <p>FINAI stima entrate, costi fissi, costi variabili e risparmio investibile per il mese che verrà, basandosi sulla <strong>media dei mesi storici completi</strong> che contengono almeno un movimento di entrata. Il mese in corso, non ancora concluso, non entra nella media (altrimenti la stima risulterebbe artificialmente bassa). Se non c'è ancora nessun mese storico utilizzabile — ad esempio al primo utilizzo, o se i mesi passati contengono solo movimenti isolati senza alcuna entrata — la stima si basa sul mese in corso, e questo viene segnalato chiaramente in etichetta come stima provvisoria.</p>
+      <h3>5. Questionario investitore</h3>
+      <p>Due semplici domande — <strong>obiettivo</strong> (liquidità di emergenza, acquisto importante, pensione, crescita del capitale, altro) e <strong>orizzonte temporale</strong> (da meno di 1 anno a oltre 10 anni) — alimentano un motore a regole che propone un'allocazione indicativa tra azionario, obbligazionario e liquidità: più l'orizzonte è lungo, maggiore la quota azionaria suggerita; l'obiettivo "liquidità di emergenza" prevale sempre con un'allocazione quasi tutta in liquidità, indipendentemente dall'orizzonte scelto.</p>
+    </div>
+  ),
+  simulazione: (
+    <div>
+      <h2>🧪 Simulazione (Paper Trading)</h2>
+      <p>Un ambiente protetto per esercitarti a comprare e vendere titoli reali senza rischiare denaro vero.</p>
+      <h3>Come funziona</h3>
+      <ul>
+        <li>Parti con un wallet virtuale da <strong>100.000€</strong> di liquidità</li>
+        <li>Acquisti e vendite avvengono ai <strong>prezzi live</strong> di Yahoo Finance — proprio come nella tab Analisi/Mercato</li>
+        <li>Comprando più volte lo stesso titolo, FINAI tiene traccia del <strong>prezzo medio di carico ponderato</strong> sulla posizione</li>
+        <li>Vendendo (in parte o per intero) calcola il <strong>P&amp;L realizzato</strong> di quell'operazione; le posizioni ancora aperte mostrano il P&amp;L non realizzato ai prezzi correnti</li>
+        <li>Tutte le operazioni restano nello storico, più recenti prima</li>
+        <li>In qualsiasi momento puoi <strong>azzerare</strong> la simulazione e ripartire dal capitale iniziale</li>
+      </ul>
+      <p>È il modo più sicuro per testare una strategia — ad esempio un piano di accumulo o un'idea di trading — prima di metterci soldi veri.</p>
     </div>
   ),
   errori: (

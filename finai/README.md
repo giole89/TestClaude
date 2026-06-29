@@ -25,7 +25,7 @@
 
 ## Funzionalità
 
-FINAI è composta da **12 sezioni** accessibili tramite la barra di navigazione superiore:
+FINAI è composta da **14 sezioni** accessibili tramite la barra di navigazione superiore:
 
 | Tab | Icona | Descrizione |
 |-----|-------|-------------|
@@ -35,12 +35,14 @@ FINAI è composta da **12 sezioni** accessibili tramite la barra di navigazione 
 | **Alert** | 🔔 | Alert sui prezzi (sopra/sotto soglia, variazione %) con notifiche browser native — persistiti su PostgreSQL |
 | **Lungo Termine** | 🌱 | Score 0–100 su 7 criteri per valutare idoneità DCA + strategia di accumulo consigliata |
 | **Portafoglio** | 💼 | Tracker P&L personale, benchmark vs S&P 500, dividendi, gain fiscale 26%, DCA simulator, correlazione, news |
-| **IPO** | 🏛️ | Monitoraggio IPO: calendario prossime quotazioni (NASDAQ), performance IPO recenti, watchlist con tracker lock-up |
+| **Simulazione** | 🧪 | Paper trading con moneta virtuale (100.000€): acquisto/vendita titoli reali a prezzi live, P&L realizzato/non realizzato, storico operazioni |
+| **Finanza Personale** | 💰 | Import estratto conto (PDF/Excel) con categorizzazione automatica, spese fisse, budget previsionale mese successivo, questionario investitore |
 | **Suggeriti** | 🎯 | 4 portafogli modello (Conservativo/Bilanciato/Crescita/Aggressivo) con allocazioni e metriche attese |
-| **Screener** | 🔍 | Screener azionario su ~80 ticker chiave con filtri P/E, dividend yield, YTD, mercato |
+| **IPO** | 🏛️ | Monitoraggio IPO: calendario prossime quotazioni (NASDAQ), performance IPO recenti, watchlist con tracker lock-up |
+| **Screener** | 🔍 | Screener azionario su ~85 ticker chiave con filtri P/E, dividend yield, YTD, mercato |
 | **Watchlist** | ⭐ | Watchlist personale ticker con target price, distanza dal target, prezzi live — persistita su PostgreSQL |
 | **Macro** | 🌍 | Dashboard macro: indici, valute, commodity, crypto, tassi USA 10/30Y, sentiment indicator globale |
-| **Guida** | 📚 | Guida completa in italiano: glossario, indicatori tecnici, ETF, DCA, errori comuni |
+| **Guida** | 📚 | Guida completa in italiano: glossario, indicatori tecnici, ETF, DCA, finanza personale, simulazione, errori comuni |
 
 Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i dati del ticker/portafoglio visualizzato e risponde in italiano con streaming in tempo reale.
 
@@ -64,6 +66,13 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
 - **Screener**: filtra azioni per P/E, yield, YTD, mercato; bottoni "Analizza" e "Aggiungi a portafoglio"
 - **Watchlist**: monitora ticker con target price; distanza dal target calcolata live; persistita su DB
 - **Macro Dashboard**: indici globali, valute, commodity, crypto (BTC/ETH), tassi USA; sentiment indicator
+
+### Finanza personale e simulazione (v3.0)
+- **Import estratto conto**: upload PDF (PDFBox) o Excel (Apache POI) con parsing heuristico multi-strategia e categorizzazione automatica per keyword (14 categorie di spesa, 5 di entrata)
+- **Spese fisse**: gestione costi ricorrenti mensili (affitto, mutuo, utenze, abbonamenti…) usati come base del budget
+- **Budget previsionale**: stima di entrate/uscite/risparmio investibile del mese successivo basata sulla media degli ultimi mesi completi, con fallback sul mese in corso quando non c'è ancora storico utilizzabile
+- **Questionario investitore**: 2 domande (obiettivo, orizzonte temporale) → motore a regole che propone un'allocazione equity/bond/liquidità
+- **Simulatore (paper trading)**: wallet virtuale da 100.000€, acquisti/vendite ai prezzi live di Yahoo Finance, calcolo P&L realizzato e non realizzato, reset in qualsiasi momento
 
 ---
 
@@ -89,6 +98,10 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
 │  │  /api/quote[/full] │ /api/batch │ /api/history │ /api/indices        │  │
 │  │  /api/search       │ /api/portfolio (CRUD) │ /api/alerts (CRUD+fire) │  │
 │  │  /api/ipo/upcoming|recent │ /api/ipo/watchlist (CRUD)                │  │
+│  │  /api/watchlist (CRUD) │ /api/screener │ /api/sim (wallet/buy/sell)  │  │
+│  │  /api/finance (estratti, spese fisse, budget, questionario)         │  │
+│  │  /api/portfolio/benchmark │ /api/portfolio/correlation               │  │
+│  │  /api/dividends │ /api/earnings │ /api/news                         │  │
 │  │  /api/ai/chat (SSE) │ /health │ /swagger-ui.html                     │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 │                    │                        │                    │          │
@@ -114,7 +127,9 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
 │                                    │                                        │
 │         ┌──────────────────────────▼───────────────────────────────────┐   │
 │         │              Spring Data JPA + Flyway                          │   │
-│         │  PortfolioRepository │ AlertRepository │ IpoWatchlistRepository│   │
+│         │  9 repository: Portfolio, Alert, IpoWatchlist, Watchlist,      │   │
+│         │  SimWallet/SimPosition/SimTrade, BankTransaction,              │   │
+│         │  FixedExpense, InvestorProfile                                 │   │
 │         └──────────────────────────┬───────────────────────────────────┘   │
 │                                    │                                        │
 └────────────────────────────────────┼───────────────────────────────────────┘
@@ -124,6 +139,11 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
                          │   portfolio_items          │
                          │   alerts                   │
                          │   ipo_watchlist            │
+                         │   watchlist_items          │
+                         │   sim_wallet/positions/trades │
+                         │   bank_transactions          │
+                         │   fixed_expenses             │
+                         │   investor_profile           │
                          └──────────────────────────┘
 ```
 
@@ -176,6 +196,39 @@ useChat.sendMessage(text, context)
   → frontend: reader loop → appendToMessage per chunk → blinking cursor
 ```
 
+### Flusso dati — Finanza Personale (import + budget)
+
+```
+StatementUpload (drag&drop PDF/Excel)
+  → POST /api/finance/statements/upload (multipart)
+  → FinanceController → StatementParserService
+    → PDF: PDFBox PDFTextStripper + 3 strategie regex (tabella larga / riga-con-importo / layout a colonne)
+    → Excel: Apache POI WorkbookFactory + rilevamento header per keyword (o fallback posizionale)
+  → TransactionCategorizer.classify() → keyword matching su 14 categorie spesa + 5 entrata
+  → BankTransactionRepository.saveAll() (dedup su data+descrizione+importo)
+  → risposta {imported, skipped, duplicates}
+
+useFinance() (React Query)
+  → GET /api/finance/budget/next-month
+  → BudgetService: media mesi storici completi con almeno un'entrata
+    (fallback sul mese in corso se non c'è storico utilizzabile)
+  → BudgetDto {estimatedIncome, fixed, variableEstimate, variableByCategory, basedOnCurrentMonthOnly}
+  → BudgetSummary + ExpensesPieChart
+```
+
+### Flusso dati — Simulazione (paper trading)
+
+```
+SimulatorPage: form acquisto/vendita
+  → POST /api/sim/buy { ticker, qty }
+  → SimulatorController → SimulatorService
+    → YahooFinanceService.fetchQuote(ticker) → prezzo live
+    → verifica liquidità disponibile → upsert SimPosition (prezzo medio ponderato)
+    → SimWallet.cashBalance -= costo → SimTrade (side=BUY) salvato
+  → GET /api/sim/summary → posizioni valorizzate a prezzo live + P&L totale
+  → reset(): POST /api/sim/reset → azzera posizioni/trade, ripristina capitale iniziale
+```
+
 ---
 
 ## Stack tecnologico
@@ -191,11 +244,14 @@ useChat.sendMessage(text, context)
 | `spring-boot-starter-cache` | 3.3.5 | Astrazione cache |
 | `spring-boot-starter-actuator` | 3.3.5 | Health check, metriche |
 | `postgresql` | runtime | Driver JDBC PostgreSQL |
-| `flyway-core` | incluso in Boot | Migrazioni schema versionato |
+| `flyway-core` + `flyway-database-postgresql` | incluso in Boot | Migrazioni schema versionato (V1-V6) |
 | `caffeine` | incluso in Boot | Cache in-memory LRU con TTL |
-| `resilience4j-spring-boot3` | 2.2.0 | Retry + Circuit Breaker annotazionali |
+| `resilience4j-spring-boot3` + `resilience4j-reactor` | 2.2.0 | Retry + Circuit Breaker annotazionali |
 | `springdoc-openapi-starter-webmvc-ui` | 2.6.0 | Swagger UI automatico |
 | `lombok` | incluso in Boot | Riduzione boilerplate (getter/setter) |
+| `jackson-datatype-jsr310` | incluso in Boot | Serializzazione `java.time.*` (LocalDate, Instant) |
+| `pdfbox` | 3.0.3 | Estrazione testo da estratti conto PDF |
+| `poi-ooxml` | 5.3.0 | Parsing estratti conto Excel (.xlsx/.xls) |
 | `junit-jupiter` | incluso in Boot | Test unitari e di integrazione |
 | `testcontainers` | 1.20.3 | PostgreSQL reale nei test CI |
 | `jacoco-maven-plugin` | 0.8.12 | Report e soglia di copertura (70%) |
@@ -243,13 +299,29 @@ finai/
 │       │   │   │   ├── PortfolioController.java   # CRUD + POST /refresh
 │       │   │   │   ├── AlertController.java       # CRUD + POST /:id/fire
 │       │   │   │   ├── IpoController.java         # upcoming/recent + watchlist CRUD
+│       │   │   │   ├── WatchlistController.java   # CRUD watchlist personale
+│       │   │   │   ├── ScreenerController.java    # GET /?minPE&maxPE&minYield&minYtd&market&limit
+│       │   │   │   ├── BenchmarkController.java   # GET /api/portfolio/benchmark?period=
+│       │   │   │   ├── CorrelationController.java # GET /api/portfolio/correlation
+│       │   │   │   ├── DividendController.java    # GET /?tickers=
+│       │   │   │   ├── EarningsController.java    # GET /?tickers=
+│       │   │   │   ├── NewsController.java        # GET /?tickers=&count=
+│       │   │   │   ├── SimulatorController.java   # wallet/summary/trades + buy/sell/reset
+│       │   │   │   ├── FinanceController.java     # estratti conto, spese fisse, budget, questionario
 │       │   │   │   ├── AiController.java          # POST /chat SSE (thread virtuali)
 │       │   │   │   └── HealthController.java
 │       │   │   ├── domain/
 │       │   │   │   ├── entity/
 │       │   │   │   │   ├── PortfolioItem.java     # @Entity JPA
 │       │   │   │   │   ├── Alert.java             # @Entity JPA con isActive()
-│       │   │   │   │   └── IpoWatchlistItem.java  # @Entity + lockupRemainingDays()
+│       │   │   │   │   ├── IpoWatchlistItem.java  # @Entity + lockupRemainingDays()
+│       │   │   │   │   ├── WatchlistItem.java     # @Entity ticker + targetPrice + note
+│       │   │   │   │   ├── SimWallet.java         # @Entity wallet virtuale (singola riga "default")
+│       │   │   │   │   ├── SimPosition.java       # @Entity posizione simulata, avgPrice ponderato
+│       │   │   │   │   ├── SimTrade.java          # @Entity storico append-only BUY/SELL
+│       │   │   │   │   ├── BankTransaction.java   # @Entity movimento importato da estratto conto
+│       │   │   │   │   ├── FixedExpense.java      # @Entity costo fisso mensile
+│       │   │   │   │   └── InvestorProfile.java   # @Entity profilo da questionario (singola riga)
 │       │   │   │   └── enums/
 │       │   │   │       └── AlertType.java         # ABOVE|BELOW|CHANGE_UP|CHANGE_DOWN
 │       │   │   ├── dto/                           # Java records immutabili
@@ -259,6 +331,19 @@ finai/
 │       │   │   │   ├── ipo/      UpcomingIpoDto, RecentIpoDto, IpoWatchlistItemDto,
 │       │   │   │   │             AddIpoWatchlistRequest, UpdateIpoWatchlistRequest
 │       │   │   │   ├── search/   SearchResultDto
+│       │   │   │   ├── watchlist/ AddWatchlistRequest, WatchlistItemDto
+│       │   │   │   ├── screener/ ScreenerDto
+│       │   │   │   ├── benchmark/ BenchmarkDto
+│       │   │   │   ├── correlation/ CorrelationDto
+│       │   │   │   ├── dividend/ DividendDto
+│       │   │   │   ├── earnings/ EarningsDto
+│       │   │   │   ├── news/     NewsItemDto
+│       │   │   │   ├── simulator/ SimWalletDto, SimSummaryDto, SimTradeDto, BuyRequest, SellRequest, ResetRequest
+│       │   │   │   ├── finance/  TransactionDto, TransactionUpdateRequest, TransactionCategoriesDto,
+│       │   │   │   │             FixedExpenseDto, FixedExpenseRequest, BudgetDto, MonthlyExpensesDto,
+│       │   │   │   │             StatementUploadResultDto, DeleteCountDto, InvestorProfileDto,
+│       │   │   │   │             QuestionnaireRequest, RecommendationDto, AllocationDto
+│       │   │   │   ├── analytics/ (DTO condivisi metriche)
 │       │   │   │   └── ai/       ChatRequest, ChatMessage
 │       │   │   ├── exception/
 │       │   │   │   ├── FinaiException.java        # Eccezione con statusCode HTTP
@@ -266,22 +351,48 @@ finai/
 │       │   │   ├── repository/
 │       │   │   │   ├── PortfolioRepository.java   # JPA + @Modifying per update bulk
 │       │   │   │   ├── AlertRepository.java
-│       │   │   │   └── IpoWatchlistRepository.java
+│       │   │   │   ├── IpoWatchlistRepository.java
+│       │   │   │   ├── WatchlistRepository.java
+│       │   │   │   ├── SimWalletRepository.java
+│       │   │   │   ├── SimPositionRepository.java
+│       │   │   │   ├── SimTradeRepository.java
+│       │   │   │   ├── BankTransactionRepository.java
+│       │   │   │   ├── FixedExpenseRepository.java
+│       │   │   │   └── InvestorProfileRepository.java
 │       │   │   └── service/
 │       │   │       ├── YahooFinanceService.java   # @Retry + @CircuitBreaker + @Cacheable
+│       │   │       ├── YahooCrumbProvider.java     # gestione crumb/cookie Yahoo
 │       │   │       ├── NasdaqService.java         # @Retry + @CircuitBreaker + @Cacheable
 │       │   │       ├── AnthropicService.java      # SSE streaming + buildSystemPrompt()
 │       │   │       ├── IndicatorsService.java     # RSI, SMA, volatilità, momentum, BullScore
 │       │   │       ├── PortfolioService.java      # CRUD + refresh bulk prezzi
+│       │   │       ├── PortfolioAnalyticsService.java # metriche derivate portafoglio
+│       │   │       ├── PortfolioBuilderService.java   # costruzione portafogli modello (Suggeriti)
 │       │   │       ├── AlertService.java          # CRUD + fire idempotente
-│       │   │       └── IpoService.java            # calendario + watchlist CRUD
+│       │   │       ├── IpoService.java            # calendario + watchlist CRUD
+│       │   │       ├── WatchlistService.java      # CRUD watchlist, dedup ticker
+│       │   │       ├── ScreenerService.java       # filtri su universe fisso ~85 ticker, @Cacheable
+│       │   │       ├── BenchmarkService.java      # performance pesata vs S&P 500 (^GSPC), @Cacheable
+│       │   │       ├── CorrelationService.java    # matrice Pearson su ritorni giornalieri, @Cacheable
+│       │   │       ├── DividendService.java       # rendimento/ex-date per ticker
+│       │   │       ├── EarningsService.java       # date/stime EPS per ticker
+│       │   │       ├── NewsService.java           # news Yahoo Finance per ticker
+│       │   │       ├── SimulatorService.java       # wallet virtuale, buy/sell, P&L, reset
+│       │   │       ├── FinanceService.java        # orchestrazione modulo finanza personale
+│       │   │       ├── StatementParserService.java # parsing PDF (PDFBox) ed Excel (Apache POI)
+│       │   │       ├── TransactionCategorizer.java # categorizzazione per keyword (14+5 categorie)
+│       │   │       ├── BudgetService.java         # budget previsionale mese successivo
+│       │   │       └── InvestmentAdvisorService.java # motore a regole goal+horizon → allocazione
 │       │   └── resources/
 │       │       ├── application.yml               # Config principale
 │       │       ├── application-test.yml          # Override per test (PostgreSQL test DB)
 │       │       └── db/migration/
 │       │           ├── V1__create_tables.sql     # Schema iniziale (3 tabelle)
 │       │           ├── V2__add_indexes.sql       # Indici per query frequenti
-│       │           └── V3__fix_alert_type_constraint.sql
+│       │           ├── V3__fix_alert_type_constraint.sql
+│       │           ├── V4__create_watchlist.sql  # watchlist_items
+│       │           ├── V5__create_simulation.sql # sim_wallet, sim_positions, sim_trades
+│       │           └── V6__create_personal_finance.sql # bank_transactions, fixed_expenses, investor_profile
 │       └── test/
 │           └── java/com/finai/
 │               ├── service/
@@ -305,7 +416,7 @@ finai/
     ├── index.html
     └── src/
         ├── main.tsx
-        ├── App.tsx               # QueryClientProvider + lazy tab router (9 tab)
+        ├── App.tsx               # QueryClientProvider + lazy tab router (14 tab)
         ├── styles.css
         ├── lib/
         │   ├── constants.ts      # STOCK_UNIVERSE (160+ ticker geografici), ETF, INDICES
@@ -323,17 +434,25 @@ finai/
         │   ├── usePortfolio.ts   # React Query CRUD portafoglio
         │   ├── useAlertsBackend.ts
         │   ├── useSearch.ts      # debounce 300ms + AbortController
-        │   └── useIPO.ts
+        │   ├── useIPO.ts
+        │   ├── useWatchlist.ts   # React Query CRUD watchlist
+        │   ├── useScreener.ts
+        │   ├── useSimulator.ts   # React Query wallet/summary/trades + buy/sell/reset
+        │   └── useFinance.ts     # React Query estratti, spese fisse, budget, questionario
         ├── components/
-        │   ├── layout/   Header, NavTabs (9 tab), PandaLoader
+        │   ├── layout/   Header, NavTabs (14 tab), PandaLoader
         │   ├── common/   SearchInput (autocomplete)
         │   ├── market/   IndexBar, SentimentMeter, MarketGrid, MarketRow
         │   ├── analyze/  StockHero, PriceChart, SignalBadge, PredictionCard
+        │   ├── portfolio/ CorrelationHeatmap e altri widget portafoglio
+        │   ├── finance/  StatementUpload, FixedExpensesManager, BudgetSummary,
+        │   │             ExpensesPieChart, QuestionnaireWizard
         │   └── chat/     ChatPanel, ChatMessage
         └── pages/
             ├── MarketPage, AnalyzePage, ComparePage, AlertsPage
             ├── LongTermPage, PortfolioPage, IPOPage
-            ├── SuggestedPage, GuidePage
+            ├── SuggestedPage, ScreenerPage, WatchlistPage, MacroPage
+            ├── SimulatorPage, PersonalFinancePage, GuidePage
 ```
 
 ---
@@ -577,12 +696,70 @@ data: [DONE]
 
 Tab supportate nel context: `analyze` | `compare` | `portfolio` | `longterm` | `ipo` | `market`
 
+### Watchlist
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/watchlist` | Lista elementi watchlist |
+| `POST /api/watchlist` | Aggiunge ticker (body: `{id, ticker, name, targetPrice, note}`), 409 se duplicato |
+| `DELETE /api/watchlist/:id` | Rimuove elemento, 404 se non trovato |
+
+### Screener
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/screener?minPE=&maxPE=&minYield=&minYtd=&market=&limit=` | Screener su universe fisso (~85 ticker); `market` in `us\|it\|de\|fr\|null`; `limit` default 50, max 100. Cache 120s |
+
+### Benchmark, Correlazione, Dividendi, Earnings, News (Portafoglio)
+
+| Endpoint | Descrizione | Cache |
+|----------|-------------|-------|
+| `GET /api/portfolio/benchmark?period=1y` | Performance portafoglio vs S&P 500 (`3m\|6m\|1y\|3y`), calcolo alpha | sì |
+| `GET /api/portfolio/correlation` | Matrice di correlazione Pearson sui ritorni giornalieri (max 8 ticker per market value) | sì |
+| `GET /api/dividends?tickers=A,B,C` | Dividendi (yield, ex-date, income annuale stimato) solo per ticker con dividendo positivo, max 30 | — |
+| `GET /api/earnings?tickers=A,B,C` | Date e stime EPS earnings, max 30 ticker | — |
+| `GET /api/news?tickers=A,B,C&count=10` | News Yahoo Finance per ticker, max 10 ticker, `count` 1-20 | — |
+
+### Simulatore (paper trading)
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/sim/wallet` | Stato grezzo wallet (liquidità + capitale iniziale) |
+| `GET /api/sim/summary` | Riepilogo: liquidità, posizioni valorizzate a prezzo live, P&L totale |
+| `GET /api/sim/trades` | Storico operazioni, più recenti prime |
+| `POST /api/sim/buy` | Acquista titolo a prezzo live (body: `{ticker, qty}`) |
+| `POST /api/sim/sell` | Vende posizione, parziale o totale (body: `{ticker, qty}`) |
+| `POST /api/sim/reset` | Azzera simulazione e ripristina capitale iniziale (body opzionale: `{startingBalance}`) |
+
+### Finanza Personale
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `POST /api/finance/statements/upload` | Importa estratto conto PDF/XLSX/XLS (multipart, campo `file`) → categorizzazione automatica |
+| `GET /api/finance/transactions` | Elenco movimenti importati, più recenti prime |
+| `GET /api/finance/transactions/categories` | Categorie note per il menu di correzione manuale |
+| `PUT /api/finance/transactions/:id` | Corregge categoria/tipo di un movimento |
+| `DELETE /api/finance/transactions/:id` | Elimina un movimento |
+| `DELETE /api/finance/transactions` | Elimina più movimenti (body: lista di id) |
+| `DELETE /api/finance/transactions/all` | Elimina tutti i movimenti |
+| `GET /api/finance/fixed-expenses` | Elenco spese fisse mensili |
+| `POST /api/finance/fixed-expenses` | Crea spesa fissa (body: `{name, category, amount}`) |
+| `PUT /api/finance/fixed-expenses/:id` | Aggiorna spesa fissa |
+| `DELETE /api/finance/fixed-expenses/:id` | Elimina spesa fissa |
+| `GET /api/finance/budget/next-month` | Budget previsionale mese successivo (entrate, costi fissi/variabili, risparmio investibile) |
+| `GET /api/finance/expenses/current-month` | Spese variabili del mese corrente per categoria (pie chart) |
+| `GET /api/finance/questionnaire` | Stato del questionario investitore |
+| `POST /api/finance/questionnaire` | Invia risposte (body: `{goal, goalNote, horizon}`) → consiglio di investimento |
+| `GET /api/finance/recommendation` | Consiglio basato sull'ultimo questionario completato |
+
+> Il budget previsionale si basa sulla media degli ultimi mesi storici **completi** che contengono almeno un'entrata; se non ce n'è ancora nessuno (storico vuoto o solo movimenti isolati senza entrate), la stima ricade sul mese in corso e la risposta segnala `basedOnCurrentMonthOnly: true`.
+
 ---
 
 ## Persistenza dati — PostgreSQL
 
-Portfolio, alert e watchlist IPO sono persistiti su **PostgreSQL 16** via Spring Data JPA.
-Le migrazioni sono gestite da **Flyway** con versioning incrementale.
+Portfolio, alert, watchlist IPO/personale, simulazione e finanza personale sono persistiti su **PostgreSQL 16** via Spring Data JPA.
+Le migrazioni sono gestite da **Flyway** con versioning incrementale (9 tabelle totali, V1-V6).
 
 ### Schema
 
@@ -625,6 +802,83 @@ CREATE TABLE ipo_watchlist (
     notes          TEXT,
     created_at     TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
+
+-- watchlist_items: watchlist personale ticker con target price opzionale
+CREATE TABLE watchlist_items (
+    id           VARCHAR(50)     PRIMARY KEY,
+    ticker       VARCHAR(20)     NOT NULL UNIQUE,
+    name         VARCHAR(255),
+    target_price DECIMAL(12, 4),
+    note         TEXT,
+    created_at   BIGINT          NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
+);
+
+-- sim_wallet: riga singola ("default") con la liquidità virtuale del paper trading
+CREATE TABLE sim_wallet (
+    id                VARCHAR(20)     PRIMARY KEY,
+    cash_balance      NUMERIC(18, 4)  NOT NULL CHECK (cash_balance >= 0),
+    starting_balance  NUMERIC(18, 4)  NOT NULL CHECK (starting_balance > 0),
+    created_at        TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    reset_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+-- sim_positions: posizioni aperte nel portafoglio simulato (prezzo medio ponderato)
+CREATE TABLE sim_positions (
+    id          VARCHAR(36)     PRIMARY KEY,
+    ticker      VARCHAR(20)     NOT NULL UNIQUE,
+    name        TEXT            NOT NULL,
+    qty         NUMERIC(18, 6)  NOT NULL CHECK (qty > 0),
+    avg_price   NUMERIC(18, 4)  NOT NULL CHECK (avg_price > 0),
+    currency    VARCHAR(10)     NOT NULL DEFAULT 'USD',
+    created_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+-- sim_trades: storico append-only delle operazioni simulate BUY/SELL
+CREATE TABLE sim_trades (
+    id           VARCHAR(36)     PRIMARY KEY,
+    ticker       VARCHAR(20)     NOT NULL,
+    name         TEXT            NOT NULL,
+    side         VARCHAR(10)     NOT NULL CHECK (side IN ('BUY', 'SELL')),
+    qty          NUMERIC(18, 6)  NOT NULL CHECK (qty > 0),
+    price        NUMERIC(18, 4)  NOT NULL CHECK (price > 0),
+    amount       NUMERIC(18, 4)  NOT NULL,
+    realized_pnl NUMERIC(18, 4),                  -- popolato solo per SELL
+    currency     VARCHAR(10)     NOT NULL DEFAULT 'USD',
+    executed_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+-- bank_transactions: movimenti importati da estratto conto (PDF/Excel)
+CREATE TABLE bank_transactions (
+    id            VARCHAR(36) PRIMARY KEY,
+    tx_date       DATE NOT NULL,
+    description   VARCHAR(500) NOT NULL,
+    amount        NUMERIC(14,2) NOT NULL,         -- negativo = uscita, positivo = entrata
+    category      VARCHAR(50) NOT NULL,
+    type          VARCHAR(20) NOT NULL CHECK (type IN ('INCOME', 'VARIABLE_EXPENSE')),
+    source_file   VARCHAR(255),
+    imported_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- fixed_expenses: costi fissi mensili inseriti manualmente (base del budget)
+CREATE TABLE fixed_expenses (
+    id          VARCHAR(36) PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    category    VARCHAR(50) NOT NULL,
+    amount      NUMERIC(14,2) NOT NULL,
+    active      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- investor_profile: profilo da questionario (singola riga "default", no multi-utente)
+CREATE TABLE investor_profile (
+    id              VARCHAR(20) PRIMARY KEY DEFAULT 'default',
+    goal            VARCHAR(50),                 -- EMERGENCY|MAJOR_PURCHASE|RETIREMENT|GROWTH|OTHER
+    goal_note       VARCHAR(255),
+    horizon         VARCHAR(30),                 -- UNDER_1Y|Y1_3|Y3_5|Y5_10|OVER_10Y
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 ```
 
 ### Migrazioni Flyway
@@ -634,6 +888,9 @@ CREATE TABLE ipo_watchlist (
 | V1 | `V1__create_tables.sql` | Schema iniziale (3 tabelle) |
 | V2 | `V2__add_indexes.sql` | Indici su ticker, fired_at, expected_date |
 | V3 | `V3__fix_alert_type_constraint.sql` | Constraint alert_type in uppercase |
+| V4 | `V4__create_watchlist.sql` | Tabella `watchlist_items` |
+| V5 | `V5__create_simulation.sql` | Tabelle `sim_wallet` (seed 100.000€), `sim_positions`, `sim_trades` |
+| V6 | `V6__create_personal_finance.sql` | Tabelle `bank_transactions`, `fixed_expenses`, `investor_profile` (seed riga "default") |
 
 ---
 
@@ -671,23 +928,32 @@ I fallback methods restituiscono `null` o liste vuote — il frontend mostra l'u
 ### Struttura e copertura
 
 ```
-81 test totali — tutti verdi — JaCoCo coverage ≥ 70%
+153 test totali — tutti verdi — JaCoCo coverage ≥ 70%
 
-Service tests (50 test unit — Mockito, zero dipendenze esterne)
-├── IndicatorsServiceTest  24 test (RSI, SMA, volatilità, momentum, BullScore, rangePos)
-├── PortfolioServiceTest    7 test
-├── AlertServiceTest        7 test
-├── IpoServiceTest          6 test
-└── AnthropicServiceTest    6 test (buildSystemPrompt per ogni tab)
+Service tests (137 test unit — Mockito, zero dipendenze esterne)
+├── IndicatorsServiceTest          24 test (RSI, SMA, volatilità, momentum, BullScore, rangePos)
+├── PortfolioServiceTest            7 test
+├── PortfolioAnalyticsServiceTest   6 test
+├── AlertServiceTest                7 test
+├── IpoServiceTest                  6 test
+├── AnthropicServiceTest            6 test (buildSystemPrompt per ogni tab)
+├── WatchlistServiceTest            8 test
+├── CorrelationServiceTest         12 test (matrice Pearson, casi limite)
+├── BenchmarkServiceTest            8 test (vs S&P 500, alpha)
+├── BudgetServiceTest               5 test (media storica, fallback mese corrente)
+├── FinanceServiceTest              8 test
+├── TransactionCategorizerTest      8 test (categorizzazione per keyword)
+├── StatementParserServiceTest      5 test (parsing PDF/Excel)
+└── FiscalCalculationTest           8 test (gain fiscale 26%)
 
 Controller tests (13 test funzionali — @WebMvcTest + MockMvc)
 ├── PortfolioControllerTest 7 test (200/201/400/404/409 HTTP status)
 └── AlertControllerTest     6 test
 
-Integration tests (18 test — Spring Boot + PostgreSQL reale)
-├── PortfolioIntegrationTest 7 test (ciclo CRUD completo)
-├── AlertIntegrationTest     6 test (creazione → fire → history)
-└── IpoIntegrationTest       5 test (watchlist + lock-up calc)
+Integration tests (22 test — Spring Boot + PostgreSQL reale)
+├── PortfolioIntegrationTest 9 test (ciclo CRUD completo)
+├── AlertIntegrationTest     7 test (creazione → fire → history)
+└── IpoIntegrationTest       6 test (watchlist + lock-up calc)
 ```
 
 ### Eseguire i test
