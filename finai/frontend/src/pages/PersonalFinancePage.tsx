@@ -3,13 +3,19 @@ import { useFinance } from '@/hooks/useFinance'
 import { StatementUpload } from '@/components/finance/StatementUpload'
 import { FixedExpensesManager } from '@/components/finance/FixedExpensesManager'
 import { BudgetSummary } from '@/components/finance/BudgetSummary'
+import { ExpensesPieChart } from '@/components/finance/ExpensesPieChart'
 import { QuestionnaireWizard } from '@/components/finance/QuestionnaireWizard'
 import { formatNumber, formatDate, colorForChange } from '@/lib/formatters'
 
+type TypeFilter = 'ALL' | 'INCOME' | 'VARIABLE_EXPENSE'
+
 function TransactionsHistory() {
   const { transactions, deleteTransaction, deleteTransactions, deleteAllTransactions, isDeletingTransactions, isDeletingAllTransactions } = useFinance()
-  const [show, setShow] = useState(false)
+  const [show, setShow] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL')
+
+  const filtered = typeFilter === 'ALL' ? transactions : transactions.filter(t => t.type === typeFilter)
 
   const toggle = (id: string) => {
     setSelected(prev => {
@@ -19,10 +25,10 @@ function TransactionsHistory() {
     })
   }
 
-  const allSelected = transactions.length > 0 && selected.size === transactions.length
+  const allSelected = filtered.length > 0 && filtered.every(t => selected.has(t.id))
 
   const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(transactions.map(t => t.id)))
+    setSelected(allSelected ? new Set() : new Set(filtered.map(t => t.id)))
   }
 
   const handleDeleteSelected = async () => {
@@ -48,8 +54,21 @@ function TransactionsHistory() {
         >
           {show ? '▾' : '▸'} Movimenti importati ({transactions.length})
         </button>
-        {show && transactions.length > 0 && (
+        {show && (
           <div style={{ display: 'flex', gap: 8 }}>
+            {(['ALL', 'INCOME', 'VARIABLE_EXPENSE'] as TypeFilter[]).map(f => (
+              <button
+                key={f}
+                onClick={() => setTypeFilter(f)}
+                style={{
+                  background: typeFilter === f ? 'var(--s3)' : 'none',
+                  border: '1px solid var(--border)', color: typeFilter === f ? 'var(--text)' : 'var(--muted2)',
+                  borderRadius: 6, padding: '3px 10px', fontFamily: 'Syne', fontSize: 11, cursor: 'pointer',
+                }}
+              >
+                {f === 'ALL' ? 'Tutti' : f === 'INCOME' ? 'Entrate' : 'Uscite'}
+              </button>
+            ))}
             {selected.size > 0 && (
               <button
                 onClick={handleDeleteSelected}
@@ -71,9 +90,9 @@ function TransactionsHistory() {
       </div>
       {show && (
         <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginTop: 8, maxHeight: 360, overflowY: 'auto' }}>
-          {transactions.length === 0 ? (
+          {filtered.length === 0 ? (
             <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontFamily: 'Syne', fontSize: 12 }}>
-              Nessun movimento importato.
+              {transactions.length === 0 ? 'Nessun movimento importato.' : 'Nessun movimento per questo filtro.'}
             </div>
           ) : (
             <>
@@ -88,7 +107,7 @@ function TransactionsHistory() {
                 <div />
                 <div />
               </div>
-              {transactions.map(t => (
+              {filtered.map(t => (
                 <div key={t.id} style={{
                   display: 'grid', gridTemplateColumns: '24px 90px 1fr 120px 90px 30px', gap: 8, alignItems: 'center',
                   padding: '8px 16px', borderBottom: '1px solid var(--border)', fontFamily: 'JetBrains Mono', fontSize: 11,
@@ -128,6 +147,7 @@ export function PersonalFinancePage() {
 
       <StatementUpload />
       <TransactionsHistory />
+      <ExpensesPieChart />
       <FixedExpensesManager />
       <BudgetSummary />
       <QuestionnaireWizard />

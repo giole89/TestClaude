@@ -166,6 +166,10 @@ public class FinanceService {
         return budgetService.computeNextMonthBudget();
     }
 
+    public MonthlyExpensesDto getCurrentMonthExpenses() {
+        return budgetService.computeCurrentMonthExpenses();
+    }
+
     // ─────────────────────────────────── Questionario / advisor ───────────────
 
     public InvestorProfileDto getInvestorProfile() {

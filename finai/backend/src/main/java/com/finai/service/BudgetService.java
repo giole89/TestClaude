@@ -4,6 +4,7 @@ import com.finai.domain.entity.BankTransaction;
 import com.finai.domain.entity.FixedExpense;
 import com.finai.dto.finance.BudgetDto;
 import com.finai.dto.finance.CategoryAmountDto;
+import com.finai.dto.finance.MonthlyExpensesDto;
 import com.finai.repository.BankTransactionRepository;
 import com.finai.repository.FixedExpenseRepository;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,16 @@ public class BudgetService {
                 .map(e -> new CategoryAmountDto(e.getKey(), avg(e.getValue(), monthsCount)))
                 .toList();
 
+        Map<String, BigDecimal> incomeByCategoryTotals = inWindow.stream()
+                .filter(t -> TransactionCategorizer.INCOME.equals(t.getType()))
+                .collect(Collectors.groupingBy(BankTransaction::getCategory,
+                        Collectors.reducing(BigDecimal.ZERO, t -> t.getAmount().abs(), BigDecimal::add)));
+
+        List<CategoryAmountDto> incomeByCategory = incomeByCategoryTotals.entrySet().stream()
+                .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
+                .map(e -> new CategoryAmountDto(e.getKey(), avg(e.getValue(), monthsCount)))
+                .toList();
+
         BigDecimal fixedCosts = fixedExpenses.findByActiveTrue().stream()
                 .map(FixedExpense::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -84,11 +95,33 @@ public class BudgetService {
                 fixed,
                 variableEstimate,
                 variableByCategory,
+                incomeByCategory,
                 savings,
                 savings,
                 recentMonths.size(),
                 !recentMonths.isEmpty()
         );
+    }
+
+    /** Spese variabili effettivamente sostenute nel mese corrente, per categoria (per il grafico a torta). */
+    public MonthlyExpensesDto computeCurrentMonthExpenses() {
+        YearMonth currentMonth = YearMonth.now();
+        List<BankTransaction> inMonth = transactions.findAllByOrderByTxDateDesc().stream()
+                .filter(t -> YearMonth.from(t.getTxDate()).equals(currentMonth))
+                .filter(t -> TransactionCategorizer.VARIABLE.equals(t.getType()))
+                .toList();
+
+        Map<String, BigDecimal> byCategory = inMonth.stream()
+                .collect(Collectors.groupingBy(BankTransaction::getCategory,
+                        Collectors.reducing(BigDecimal.ZERO, t -> t.getAmount().abs(), BigDecimal::add)));
+
+        List<CategoryAmountDto> categories = byCategory.entrySet().stream()
+                .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
+                .map(e -> new CategoryAmountDto(e.getKey(), round(e.getValue()).doubleValue()))
+                .toList();
+
+        double total = categories.stream().mapToDouble(CategoryAmountDto::amount).sum();
+        return new MonthlyExpensesDto(currentMonthLabel(), round(BigDecimal.valueOf(total)).doubleValue(), categories);
     }
 
     private BigDecimal sumByType(List<BankTransaction> list, String type) {
@@ -107,8 +140,15 @@ public class BudgetService {
     }
 
     private String nextMonthLabel() {
-        LocalDate nextMonth = LocalDate.now().plusMonths(1);
-        String label = nextMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ITALIAN));
+        return monthLabel(LocalDate.now().plusMonths(1));
+    }
+
+    private String currentMonthLabel() {
+        return monthLabel(LocalDate.now());
+    }
+
+    private String monthLabel(LocalDate date) {
+        String label = date.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ITALIAN));
         return label.substring(0, 1).toUpperCase(Locale.ITALIAN) + label.substring(1);
     }
 }

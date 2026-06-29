@@ -46,10 +46,17 @@ export interface Budget {
   fixedCosts: number
   variableCostsEstimate: number
   variableByCategory: CategoryAmount[]
+  incomeByCategory: CategoryAmount[]
   projectedSavings: number
   investableAmount: number
   monthsOfHistory: number
   hasEnoughData: boolean
+}
+
+export interface MonthlyExpenses {
+  periodLabel: string
+  total: number
+  byCategory: CategoryAmount[]
 }
 
 export type InvestmentGoal = 'EMERGENCY' | 'MAJOR_PURCHASE' | 'RETIREMENT' | 'GROWTH' | 'OTHER'
@@ -100,6 +107,7 @@ export interface Recommendation {
 const TRANSACTIONS_KEY = ['financeTransactions']
 const FIXED_EXPENSES_KEY = ['financeFixedExpenses']
 const BUDGET_KEY = ['financeBudget']
+const CURRENT_MONTH_EXPENSES_KEY = ['financeCurrentMonthExpenses']
 const PROFILE_KEY = ['financeProfile']
 const RECOMMENDATION_KEY = ['financeRecommendation']
 
@@ -124,6 +132,12 @@ export function useFinance() {
     staleTime: 30_000,
   })
 
+  const currentMonthExpenses = useQuery<MonthlyExpenses>({
+    queryKey: CURRENT_MONTH_EXPENSES_KEY,
+    queryFn: () => axios.get(`${API_BASE}/api/finance/expenses/current-month`).then(r => r.data),
+    staleTime: 30_000,
+  })
+
   const profile = useQuery<InvestorProfile>({
     queryKey: PROFILE_KEY,
     queryFn: () => axios.get(`${API_BASE}/api/finance/questionnaire`).then(r => r.data),
@@ -141,6 +155,7 @@ export function useFinance() {
   const invalidateMoneyFlows = () => {
     qc.invalidateQueries({ queryKey: TRANSACTIONS_KEY })
     qc.invalidateQueries({ queryKey: BUDGET_KEY })
+    qc.invalidateQueries({ queryKey: CURRENT_MONTH_EXPENSES_KEY })
   }
 
   const uploadStatement = useMutation({
@@ -206,6 +221,8 @@ export function useFinance() {
     isLoadingFixedExpenses: fixedExpenses.isLoading,
     budget: budget.data,
     isLoadingBudget: budget.isLoading,
+    currentMonthExpenses: currentMonthExpenses.data,
+    isLoadingCurrentMonthExpenses: currentMonthExpenses.isLoading,
     profile: profile.data,
     recommendation: recommendation.data,
     isLoadingRecommendation: recommendation.isFetching,

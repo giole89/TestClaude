@@ -13,6 +13,7 @@ public record BudgetDto(
         Double fixedCosts,
         Double variableCostsEstimate,
         List<CategoryAmountDto> variableByCategory,
+        List<CategoryAmountDto> incomeByCategory,
         Double projectedSavings,
         Double investableAmount,
         int monthsOfHistory,

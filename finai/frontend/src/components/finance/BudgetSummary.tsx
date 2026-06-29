@@ -1,5 +1,33 @@
-import { useFinance } from '@/hooks/useFinance'
+import { useFinance, CategoryAmount } from '@/hooks/useFinance'
 import { formatNumber } from '@/lib/formatters'
+
+function CategoryBarList({ title, categories, barColor }: { title: string; categories: CategoryAmount[]; barColor: string }) {
+  if (categories.length === 0) return null
+  const max = Math.max(1, ...categories.map(c => c.amount))
+  return (
+    <div>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--muted2)', marginBottom: 8 }}>
+        {title}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {categories.map(c => (
+          <div key={c.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 110, fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)' }}>{c.category}</div>
+            <div style={{ flex: 1, background: 'var(--s3)', borderRadius: 6, height: 14, position: 'relative', overflow: 'hidden' }}>
+              <div style={{
+                position: 'absolute', left: 0, top: 0, height: '100%',
+                width: `${(c.amount / max) * 100}%`, background: barColor, borderRadius: 6,
+              }} />
+            </div>
+            <div style={{ width: 80, textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--text)' }}>
+              {formatNumber(c.amount, 2)} €
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export function BudgetSummary() {
   const { budget, isLoadingBudget } = useFinance()
@@ -11,8 +39,6 @@ export function BudgetSummary() {
       </div>
     )
   }
-
-  const maxCategory = Math.max(1, ...budget.variableByCategory.map(c => c.amount))
 
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
@@ -41,29 +67,10 @@ export function BudgetSummary() {
         ))}
       </div>
 
-      {budget.variableByCategory.length > 0 && (
-        <div>
-          <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--muted2)', marginBottom: 8 }}>
-            Spese variabili medie per categoria
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {budget.variableByCategory.map(c => (
-              <div key={c.category} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 110, fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)' }}>{c.category}</div>
-                <div style={{ flex: 1, background: 'var(--s3)', borderRadius: 6, height: 14, position: 'relative', overflow: 'hidden' }}>
-                  <div style={{
-                    position: 'absolute', left: 0, top: 0, height: '100%',
-                    width: `${(c.amount / maxCategory) * 100}%`, background: 'var(--acc3)', borderRadius: 6,
-                  }} />
-                </div>
-                <div style={{ width: 80, textAlign: 'right', fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--text)' }}>
-                  {formatNumber(c.amount, 2)} €
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <CategoryBarList title="Entrate medie per categoria" categories={budget.incomeByCategory} barColor="var(--acc)" />
+        <CategoryBarList title="Spese variabili medie per categoria" categories={budget.variableByCategory} barColor="var(--acc3)" />
+      </div>
     </div>
   )
 }

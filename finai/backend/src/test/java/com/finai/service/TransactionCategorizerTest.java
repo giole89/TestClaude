@@ -44,6 +44,17 @@ class TransactionCategorizerTest {
     }
 
     @Test
+    @DisplayName("distingue le spese sanitarie umane da quelle veterinarie")
+    void distinguishesHealthFromVeterinaryExpenses() {
+        assertThat(categorizer.classify("Farmacia Centrale", new BigDecimal("-18.50")).category())
+                .isEqualTo("Salute");
+        assertThat(categorizer.classify("Clinica Veterinaria San Rocco", new BigDecimal("-85.00")).category())
+                .isEqualTo("Veterinario");
+        assertThat(categorizer.classify("Ambulatorio Veterinario Dr. Bianchi", new BigDecimal("-60.00")).category())
+                .isEqualTo("Veterinario");
+    }
+
+    @Test
     @DisplayName("quando l'estratto conto riporta un'etichetta generica (es. \"Altro\") ricade comunque sulla categoria di default in base al segno")
     void fallsBackToGenericCategoryForGenericSourceLabels() {
         assertThat(categorizer.classify("Altro", new BigDecimal("-10.00")))

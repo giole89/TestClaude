@@ -102,6 +102,12 @@ public class FinanceController {
         return ResponseEntity.ok(service.getNextMonthBudget());
     }
 
+    @GetMapping("/expenses/current-month")
+    @Operation(summary = "Spese variabili effettivamente sostenute nel mese corrente, per categoria (per il grafico a torta)")
+    public ResponseEntity<MonthlyExpensesDto> currentMonthExpenses() {
+        return ResponseEntity.ok(service.getCurrentMonthExpenses());
+    }
+
     // ─────────────────────────────────── Questionario / advisor ───────────────
 
     @GetMapping("/questionnaire")

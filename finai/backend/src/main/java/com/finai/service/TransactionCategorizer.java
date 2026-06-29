@@ -31,8 +31,12 @@ public class TransactionCategorizer {
         EXPENSE_CATEGORIES.put("Casa e utenze", Set.of(
                 "enel", "eni gas", "hera", "a2a", "acea", "condominio", "affitto", "mutuo", "tari", "iren",
                 "fastweb", "tim ", "vodafone", "windtre", "wind ", "iliad", "gas", "luce", "acqua", "tigros", "imu", "rifiuti"));
+        EXPENSE_CATEGORIES.put("Veterinario", Set.of(
+                "veterinario", "veterinaria", "clinica veterinaria", "ambulatorio veterinario", "vet ",
+                "petshop", "pet shop", "toelettatura", "mangimi", "croccantini"));
         EXPENSE_CATEGORIES.put("Salute", Set.of(
-                "farmacia", "parafarmacia", "medico", "dentista", "ospedale", "ticket sanitario", "ambulatorio", "analisi", "studio medico"));
+                "farmacia", "parafarmacia", "medico", "dentista", "ospedale", "ticket sanitario", "ambulatorio",
+                "analisi", "studio medico", "fisioterapia", "psicologo", "oculista", "specialista"));
         EXPENSE_CATEGORIES.put("Abbonamenti", Set.of(
                 "netflix", "spotify", "prime video", "disney+", "abbonamento", "subscription", "dazn", "now tv", "apple.com", "google play", "youtube premium"));
         EXPENSE_CATEGORIES.put("Tempo libero", Set.of(
