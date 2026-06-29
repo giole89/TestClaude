@@ -45,6 +45,8 @@ class FinanceServiceTest {
     @Mock
     private BudgetService budgetService;
     @Mock
+    private SpendingInsightsService insightsService;
+    @Mock
     private InvestmentAdvisorService advisorService;
     @Mock
     private PortfolioBuilderService portfolioBuilder;
@@ -54,7 +56,7 @@ class FinanceServiceTest {
     @BeforeEach
     void setUp() {
         service = new FinanceService(transactionRepo, fixedExpenseRepo, profileRepo, parser,
-                new TransactionCategorizer(), budgetService, advisorService, portfolioBuilder);
+                new TransactionCategorizer(), budgetService, insightsService, advisorService, portfolioBuilder);
         lenient().when(transactionRepo.save(any(BankTransaction.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 

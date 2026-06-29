@@ -35,6 +35,7 @@ public class FinanceService {
     private final StatementParserService    parser;
     private final TransactionCategorizer    categorizer;
     private final BudgetService             budgetService;
+    private final SpendingInsightsService   insightsService;
     private final InvestmentAdvisorService  advisorService;
     private final PortfolioBuilderService   portfolioBuilder;
 
@@ -44,6 +45,7 @@ public class FinanceService {
                           StatementParserService parser,
                           TransactionCategorizer categorizer,
                           BudgetService budgetService,
+                          SpendingInsightsService insightsService,
                           InvestmentAdvisorService advisorService,
                           PortfolioBuilderService portfolioBuilder) {
         this.transactionRepo = transactionRepo;
@@ -52,6 +54,7 @@ public class FinanceService {
         this.parser = parser;
         this.categorizer = categorizer;
         this.budgetService = budgetService;
+        this.insightsService = insightsService;
         this.advisorService = advisorService;
         this.portfolioBuilder = portfolioBuilder;
     }
@@ -201,6 +204,10 @@ public class FinanceService {
 
     public MonthlyExpensesDto getCurrentMonthExpenses() {
         return budgetService.computeCurrentMonthExpenses();
+    }
+
+    public SpendingInsightsDto getSpendingInsights() {
+        return insightsService.analyze();
     }
 
     // ─────────────────────────────────── Questionario / advisor ───────────────

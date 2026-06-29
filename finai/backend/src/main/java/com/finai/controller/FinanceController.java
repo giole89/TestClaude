@@ -120,6 +120,12 @@ public class FinanceController {
         return ResponseEntity.ok(service.getCurrentMonthExpenses());
     }
 
+    @GetMapping("/insights")
+    @Operation(summary = "Analizza i movimenti reali importati e produce suggerimenti di risparmio concreti")
+    public ResponseEntity<SpendingInsightsDto> insights() {
+        return ResponseEntity.ok(service.getSpendingInsights());
+    }
+
     // ─────────────────────────────────── Questionario / advisor ───────────────
 
     @GetMapping("/questionnaire")

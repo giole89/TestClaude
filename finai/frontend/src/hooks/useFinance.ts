@@ -52,11 +52,29 @@ export interface Budget {
   variableCostsEstimate: number
   variableByCategory: CategoryAmount[]
   incomeByCategory: CategoryAmount[]
+  /** Saldo reale (entrate - costi fissi - costi variabili stimati): può essere negativo. */
   projectedSavings: number
+  /** Quota effettivamente investibile, sempre >= 0. */
   investableAmount: number
   monthsOfHistory: number
   hasEnoughData: boolean
   basedOnCurrentMonthOnly: boolean
+  /** true se projectedSavings è negativo: il mese successivo è previsto in perdita. */
+  deficit: boolean
+}
+
+export interface SavingSuggestion {
+  type: 'HIGH_SHARE' | 'WANTS_OVER_BUDGET' | 'RECURRING' | 'TREND_UP'
+  category: string | null
+  severity: 'ALTA' | 'MEDIA' | 'BASSA'
+  title: string
+  message: string
+  potentialMonthlySaving: number
+}
+
+export interface SpendingInsights {
+  suggestions: SavingSuggestion[]
+  totalPotentialMonthlySaving: number
 }
 
 export interface MonthlyExpenses {
@@ -120,6 +138,7 @@ const TRANSACTION_CATEGORIES_KEY = ['financeTransactionCategories']
 const FIXED_EXPENSES_KEY = ['financeFixedExpenses']
 const BUDGET_KEY = ['financeBudget']
 const CURRENT_MONTH_EXPENSES_KEY = ['financeCurrentMonthExpenses']
+const SPENDING_INSIGHTS_KEY = ['financeSpendingInsights']
 const PROFILE_KEY = ['financeProfile']
 const RECOMMENDATION_KEY = ['financeRecommendation']
 
@@ -156,6 +175,12 @@ export function useFinance() {
     staleTime: 30_000,
   })
 
+  const spendingInsights = useQuery<SpendingInsights>({
+    queryKey: SPENDING_INSIGHTS_KEY,
+    queryFn: () => axios.get(`${API_BASE}/api/finance/insights`).then(r => r.data),
+    staleTime: 30_000,
+  })
+
   const profile = useQuery<InvestorProfile>({
     queryKey: PROFILE_KEY,
     queryFn: () => axios.get(`${API_BASE}/api/finance/questionnaire`).then(r => r.data),
@@ -176,6 +201,7 @@ export function useFinance() {
     qc.invalidateQueries({ queryKey: TRANSACTIONS_KEY, refetchType: 'all' })
     qc.invalidateQueries({ queryKey: BUDGET_KEY, refetchType: 'all' })
     qc.invalidateQueries({ queryKey: CURRENT_MONTH_EXPENSES_KEY, refetchType: 'all' })
+    qc.invalidateQueries({ queryKey: SPENDING_INSIGHTS_KEY, refetchType: 'all' })
   }
 
   const uploadStatement = useMutation({
@@ -250,6 +276,8 @@ export function useFinance() {
     isLoadingBudget: budget.isLoading,
     currentMonthExpenses: currentMonthExpenses.data,
     isLoadingCurrentMonthExpenses: currentMonthExpenses.isLoading,
+    spendingInsights: spendingInsights.data,
+    isLoadingSpendingInsights: spendingInsights.isLoading,
     profile: profile.data,
     recommendation: recommendation.data,
     isLoadingRecommendation: recommendation.isFetching,

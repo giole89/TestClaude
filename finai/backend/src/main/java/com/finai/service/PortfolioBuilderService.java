@@ -3,6 +3,7 @@ package com.finai.service;
 import com.finai.dto.finance.AllocationDto;
 import com.finai.dto.finance.MarketSnapshotDto;
 import com.finai.dto.finance.PortfolioLineDto;
+import com.finai.dto.quote.HistoryPoint;
 import com.finai.dto.quote.QuoteDto;
 import org.springframework.stereotype.Service;
 
@@ -18,9 +19,23 @@ import java.util.stream.Collectors;
  * quote di oggi per renderlo verosimile, e aggiunge una lettura sintetica
  * dell'andamento del mercato del giorno (S&P 500 + VIX).
  *
+ * <p>L'allocazione macro (quanto azionario/obbligazionario/liquidità) resta
+ * decisa dal profilo dell'investitore (obiettivo, orizzonte temporale), perché
+ * riflette la capacità di rischio della persona, non la convenienza di un
+ * singolo strumento. Il peso tra strumento "core" e "satellite" all'interno
+ * di ciascun macro-bucket, invece, non è più un fisso 70/30 (azionario) o
+ * 60/40 (obbligazionario): viene ricalcolato in base allo storico a 1 anno di
+ * rendimento e volatilità di ciascun ETF, usando lo Sharpe ratio
+ * (rendimento in eccesso rispetto a un tasso privo di rischio, diviso la
+ * volatilità) come misura di rendimento aggiustato per il rischio — l'idea
+ * alla base della Modern Portfolio Theory di Markowitz e dello Sharpe ratio
+ * di William Sharpe: a parità di rischio "macro" già fissato dal profilo,
+ * si tende a pesare di più lo strumento con il miglior rapporto
+ * rendimento/rischio recente, entro limiti prudenziali che evitano di
+ * snaturare la diversificazione del core.</p>
+ *
  * <p>È un esempio illustrativo a scopo informativo, non una raccomandazione
- * di acquisto: gli strumenti sono scelti da un paniere fisso di ETF noti e
- * liquidi, non da un'analisi di convenienza del momento.</p>
+ * di acquisto personalizzata.</p>
  */
 @Service
 public class PortfolioBuilderService {
@@ -42,6 +57,19 @@ public class PortfolioBuilderService {
     private static final String BOND_SATELLITE_NAME = "iShares Euro Aggregate Bond UCITS ETF";
     private static final String LIQUIDITY = "IB01.AS";
     private static final String LIQUIDITY_NAME = "iShares $ Treasury Bond 0-1yr UCITS ETF";
+
+    /** Tasso privo di rischio annuo usato come riferimento per lo Sharpe ratio. */
+    private static final double RISK_FREE_RATE = 0.02;
+    private static final int TRADING_DAYS_PER_YEAR = 252;
+
+    private static final double EQUITY_CORE_DEFAULT = 0.7;
+    private static final double EQUITY_CORE_MIN = 0.5;
+    private static final double EQUITY_CORE_MAX = 0.85;
+    private static final double BOND_CORE_DEFAULT = 0.6;
+    private static final double BOND_CORE_MIN = 0.4;
+    private static final double BOND_CORE_MAX = 0.75;
+
+    private record Metrics(double annualizedReturn, double annualizedVolatility, double sharpeRatio, boolean reliable) {}
 
     private final YahooFinanceService yahoo;
 
@@ -75,16 +103,23 @@ public class PortfolioBuilderService {
 
         if (allocation.equityPct() > 0) {
             if (allocation.equityPct() >= 20) {
-                double core = round1(allocation.equityPct() * 0.7);
-                double satellite = round1(allocation.equityPct() - core);
-                portfolio.add(line(quotes, EQUITY_CORE, EQUITY_CORE_NAME, "Azionario", core,
-                        "Core azionario globale diversificato su 3700+ titoli"));
                 String satTicker = growthSatellite ? EQUITY_SATELLITE_GROWTH : EQUITY_SATELLITE_DIVERSIFY;
                 String satName = growthSatellite ? EQUITY_SATELLITE_GROWTH_NAME : EQUITY_SATELLITE_DIVERSIFY_NAME;
-                String satWhy = growthSatellite
+                String satWhyBase = growthSatellite
                         ? "Satellite growth — esposizione ai titoli tech ad alta crescita"
                         : "Satellite mercati emergenti — diversifica la componente azionaria";
-                portfolio.add(line(quotes, satTicker, satName, "Azionario", satellite, satWhy));
+
+                Metrics coreMetrics = metricsFor(EQUITY_CORE);
+                Metrics satMetrics = metricsFor(satTicker);
+                double coreWeightShare = sharpeWeightedShare(coreMetrics, satMetrics, EQUITY_CORE_DEFAULT, EQUITY_CORE_MIN, EQUITY_CORE_MAX);
+
+                double core = round1(allocation.equityPct() * coreWeightShare);
+                double satellite = round1(allocation.equityPct() - core);
+
+                portfolio.add(line(quotes, EQUITY_CORE, EQUITY_CORE_NAME, "Azionario", core,
+                        "Core azionario globale diversificato su 3700+ titoli" + statRationale(coreMetrics, satMetrics, coreWeightShare, true)));
+                portfolio.add(line(quotes, satTicker, satName, "Azionario", satellite,
+                        satWhyBase + statRationale(coreMetrics, satMetrics, coreWeightShare, false)));
             } else {
                 portfolio.add(line(quotes, EQUITY_CORE, EQUITY_CORE_NAME, "Azionario", round1(allocation.equityPct()),
                         "Quota azionaria contenuta vista la finestra temporale breve"));
@@ -93,12 +128,17 @@ public class PortfolioBuilderService {
 
         if (allocation.bondPct() > 0) {
             if (allocation.bondPct() >= 20) {
-                double core = round1(allocation.bondPct() * 0.6);
+                Metrics coreMetrics = metricsFor(BOND_CORE);
+                Metrics satMetrics = metricsFor(BOND_SATELLITE);
+                double coreWeightShare = sharpeWeightedShare(coreMetrics, satMetrics, BOND_CORE_DEFAULT, BOND_CORE_MIN, BOND_CORE_MAX);
+
+                double core = round1(allocation.bondPct() * coreWeightShare);
                 double satellite = round1(allocation.bondPct() - core);
+
                 portfolio.add(line(quotes, BOND_CORE, BOND_CORE_NAME, "Obbligazionario", core,
-                        "Obbligazioni globali investment grade — stabilità e cedole"));
+                        "Obbligazioni globali investment grade — stabilità e cedole" + statRationale(coreMetrics, satMetrics, coreWeightShare, true)));
                 portfolio.add(line(quotes, BOND_SATELLITE, BOND_SATELLITE_NAME, "Obbligazionario", satellite,
-                        "Obbligazioni euro — riduce il rischio di cambio"));
+                        "Obbligazioni euro — riduce il rischio di cambio" + statRationale(coreMetrics, satMetrics, coreWeightShare, false)));
             } else {
                 portfolio.add(line(quotes, BOND_CORE, BOND_CORE_NAME, "Obbligazionario", round1(allocation.bondPct()),
                         "Obbligazioni globali investment grade"));
@@ -111,6 +151,63 @@ public class PortfolioBuilderService {
         }
 
         return new Result(snapshot, portfolio);
+    }
+
+    // ─────────────────────────────── Pesatura statistica (Sharpe) ─────────────
+
+    /**
+     * Calcola rendimento, volatilità annualizzati e Sharpe ratio di un ticker
+     * sullo storico daily a 1 anno. Se i dati sono insufficienti (errore di
+     * rete, ticker nuovo, ecc.) restituisce {@code reliable=false}: in quel
+     * caso il chiamante ricade sullo split predefinito.
+     */
+    private Metrics metricsFor(String ticker) {
+        List<HistoryPoint> history = yahoo.fetchHistory(ticker, "1y");
+        List<Double> dailyReturns = new ArrayList<>();
+        for (int i = 1; i < history.size(); i++) {
+            Double prev = history.get(i - 1).close();
+            Double curr = history.get(i).close();
+            if (prev != null && curr != null && prev > 0) {
+                dailyReturns.add((curr - prev) / prev);
+            }
+        }
+        if (dailyReturns.size() < 60) return new Metrics(0, 0, 0, false);
+
+        double meanDaily = dailyReturns.stream().mapToDouble(d -> d).average().orElse(0);
+        double variance = dailyReturns.stream().mapToDouble(d -> Math.pow(d - meanDaily, 2)).average().orElse(0);
+        double dailyVol = Math.sqrt(variance);
+
+        double annualizedReturn = meanDaily * TRADING_DAYS_PER_YEAR;
+        double annualizedVolatility = dailyVol * Math.sqrt(TRADING_DAYS_PER_YEAR);
+        double sharpe = annualizedVolatility > 0 ? (annualizedReturn - RISK_FREE_RATE) / annualizedVolatility : 0;
+
+        return new Metrics(annualizedReturn, annualizedVolatility, sharpe, true);
+    }
+
+    /**
+     * Quota da assegnare al "core" entro [min, max], spostata rispetto al
+     * default in base al confronto tra gli Sharpe ratio di core e satellite:
+     * lo strumento con il miglior rendimento aggiustato per il rischio pesa
+     * di più, senza mai sbilanciare oltre i limiti prudenziali.
+     */
+    private double sharpeWeightedShare(Metrics core, Metrics satellite, double defaultShare, double min, double max) {
+        if (!core.reliable() || !satellite.reliable()) return defaultShare;
+
+        // Sposta gli Sharpe ratio su un dominio positivo per poterli usare come pesi proporzionali.
+        double a = Math.max(core.sharpeRatio(), 0.05);
+        double b = Math.max(satellite.sharpeRatio(), 0.05);
+        double share = a / (a + b);
+        return Math.min(Math.max(share, min), max);
+    }
+
+    private String statRationale(Metrics core, Metrics satellite, double coreShare, boolean isCore) {
+        if (!core.reliable() || !satellite.reliable()) return "";
+        String pesoLabel = isCore ? "core" : "satellite";
+        double sharpeShown = isCore ? core.sharpeRatio() : satellite.sharpeRatio();
+        double weightShown = isCore ? coreShare : 1 - coreShare;
+        return String.format(Locale.ITALIAN,
+                " — Sharpe a 1 anno %.2f (peso %s %.0f%%, calibrato sul rendimento aggiustato per il rischio)",
+                sharpeShown, pesoLabel, weightShown * 100);
     }
 
     private PortfolioLineDto line(Map<String, QuoteDto> quotes, String ticker, String fallbackName, String assetClass,
@@ -134,7 +231,7 @@ public class PortfolioBuilderService {
         String sentiment = vol == null ? trend : trend + ", " + vol;
 
         String note = String.format(Locale.ITALIAN,
-                "Oggi l'S&P 500 è %s (%s%.2f%%) e il VIX è a %s (%s). Il portafoglio sotto usa le quote attuali di mercato, a parità di allocazione decisa in base al tuo profilo: non è un consiglio di investimento personalizzato, ma un esempio concreto per orientarti.",
+                "Oggi l'S&P 500 è %s (%s%.2f%%) e il VIX è a %s (%s). Il portafoglio sotto usa le quote attuali di mercato, a parità di allocazione decisa in base al tuo profilo, con i pesi core/satellite calibrati sullo storico di rendimento e volatilità a 1 anno: non è un consiglio di investimento personalizzato, ma un esempio concreto per orientarti.",
                 trend,
                 spChange != null && spChange > 0 ? "+" : "",
                 spChange != null ? spChange : 0.0,

@@ -24,8 +24,11 @@ import java.util.stream.Collectors;
  *   <li>entrate e costi variabili stimati come media degli ultimi mesi
  *       importati da estratto conto ({@link BankTransaction}).</li>
  * </ul>
- * La quota di risparmio investibile è ciò che resta di entrate stimate dopo
- * costi fissi e variabili previsti, mai negativa.
+ * Il saldo previsionale ({@code projectedSavings}) è la differenza reale tra
+ * entrate stimate e costi fissi+variabili previsti: può essere negativo, nel
+ * qual caso il mese successivo è previsto in perdita. La quota investibile
+ * ({@code investableAmount}) è invece sempre non negativa, perché non si può
+ * investire più di quanto resti davvero disponibile.
  */
 @Service
 public class BudgetService {
@@ -106,7 +109,8 @@ public class BudgetService {
         double variableEstimate = avg(totalVariable, monthsCount);
         double fixed = round(fixedCosts).doubleValue();
 
-        double savings = Math.max(0.0, estimatedIncome - fixed - variableEstimate);
+        double balance = round(BigDecimal.valueOf(estimatedIncome - fixed - variableEstimate)).doubleValue();
+        double investable = Math.max(0.0, balance);
 
         return new BudgetDto(
                 nextMonthLabel(),
@@ -115,8 +119,8 @@ public class BudgetService {
                 variableEstimate,
                 variableByCategory,
                 incomeByCategory,
-                savings,
-                savings,
+                balance,
+                investable,
                 basedOnCurrentMonthOnly ? 0 : completedMonths.size(),
                 !basedOnCurrentMonthOnly && !completedMonths.isEmpty(),
                 basedOnCurrentMonthOnly

@@ -53,12 +53,29 @@ export function BudgetSummary() {
           : 'Servono dati di almeno un mese passato completo per stimare in modo affidabile entrate e spese variabili: importa l\'estratto conto del mese precedente.'}
       </div>
 
+      {budget.deficit && (
+        <div style={{
+          background: 'rgba(239,68,68,0.1)', border: '1px solid var(--red)', borderRadius: 10,
+          padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 18 }} aria-hidden="true">⚠</span>
+          <div style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--red)' }}>
+            Il mese successivo è previsto <strong>in perdita di {formatNumber(Math.abs(budget.projectedSavings), 2)} €</strong>:
+            le entrate stimate non bastano a coprire costi fissi e variabili previsti.
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
         {[
           { label: 'Entrate stimate', value: budget.estimatedIncome, color: 'var(--text)' },
           { label: 'Costi fissi', value: budget.fixedCosts, color: 'var(--red)' },
           { label: 'Costi variabili stimati', value: budget.variableCostsEstimate, color: 'var(--acc3)' },
-          { label: 'Risparmio investibile', value: budget.investableAmount, color: 'var(--acc)' },
+          {
+            label: budget.deficit ? 'Saldo previsto (in perdita)' : 'Risparmio investibile',
+            value: budget.deficit ? budget.projectedSavings : budget.investableAmount,
+            color: budget.deficit ? 'var(--red)' : 'var(--acc)',
+          },
         ].map(s => (
           <div key={s.label} style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
             <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>{s.label}</div>

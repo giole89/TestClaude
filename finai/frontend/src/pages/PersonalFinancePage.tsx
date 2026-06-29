@@ -3,6 +3,7 @@ import { useFinance } from '@/hooks/useFinance'
 import { StatementUpload } from '@/components/finance/StatementUpload'
 import { FixedExpensesManager } from '@/components/finance/FixedExpensesManager'
 import { BudgetSummary } from '@/components/finance/BudgetSummary'
+import { SavingSuggestions } from '@/components/finance/SavingSuggestions'
 import { ExpensesPieChart } from '@/components/finance/ExpensesPieChart'
 import { QuestionnaireWizard } from '@/components/finance/QuestionnaireWizard'
 import { formatNumber, formatDate, colorForChange } from '@/lib/formatters'
@@ -246,6 +247,7 @@ export function PersonalFinancePage() {
       <ExpensesPieChart />
       <FixedExpensesManager />
       <BudgetSummary />
+      <SavingSuggestions />
       <QuestionnaireWizard />
     </div>
   )
