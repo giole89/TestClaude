@@ -46,14 +46,22 @@ public class BudgetService {
 
         // Il mese in corso non è ancora concluso: includerlo nella media storica la farebbe
         // risultare artificialmente più bassa (somma di un mese parziale divisa come se fosse
-        // completo). La stima del prossimo mese si basa quindi solo sui mesi passati completi.
-        List<YearMonth> recentMonths = all.stream()
+        // completo). La stima del prossimo mese si basa quindi sui mesi passati completi quando
+        // disponibili; se non ce n'è ancora nessuno (es. utente alle prime armi, ha importato solo
+        // l'estratto conto di questo mese) si ricade sul mese in corso piuttosto che mostrare zero
+        // ovunque, segnalando comunque che si tratta di una stima provvisoria.
+        List<YearMonth> completedMonths = all.stream()
                 .map(t -> YearMonth.from(t.getTxDate()))
                 .distinct()
                 .filter(ym -> !ym.equals(currentMonth))
                 .sorted(Comparator.reverseOrder())
                 .limit(LOOKBACK_MONTHS)
                 .toList();
+
+        boolean basedOnCurrentMonthOnly = completedMonths.isEmpty()
+                && all.stream().anyMatch(t -> YearMonth.from(t.getTxDate()).equals(currentMonth));
+        List<YearMonth> recentMonths = basedOnCurrentMonthOnly ? List.of(currentMonth) : completedMonths;
+
         Set<YearMonth> monthFilter = new HashSet<>(recentMonths);
         int monthsCount = Math.max(recentMonths.size(), 1);
 
@@ -103,8 +111,9 @@ public class BudgetService {
                 incomeByCategory,
                 savings,
                 savings,
-                recentMonths.size(),
-                !recentMonths.isEmpty()
+                completedMonths.size(),
+                !completedMonths.isEmpty(),
+                basedOnCurrentMonthOnly
         );
     }
 

@@ -48,6 +48,8 @@ export function BudgetSummary() {
       <div style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
         {budget.hasEnoughData
           ? `Stima basata sulla media degli ultimi ${budget.monthsOfHistory} ${budget.monthsOfHistory === 1 ? 'mese completo' : 'mesi completi'} (il mese in corso, non ancora concluso, non è incluso nella media: per la spesa reale fin qui vedi il grafico qui sotto).`
+          : budget.basedOnCurrentMonthOnly
+          ? 'Stima provvisoria basata solo sul mese in corso (non ancora concluso): potrebbe essere sottostimata rispetto a un mese intero. Importa anche l\'estratto conto di un mese precedente per una stima più affidabile.'
           : 'Servono dati di almeno un mese passato completo per stimare in modo affidabile entrate e spese variabili: importa l\'estratto conto del mese precedente.'}
       </div>
 

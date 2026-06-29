@@ -56,6 +56,7 @@ export interface Budget {
   investableAmount: number
   monthsOfHistory: number
   hasEnoughData: boolean
+  basedOnCurrentMonthOnly: boolean
 }
 
 export interface MonthlyExpenses {

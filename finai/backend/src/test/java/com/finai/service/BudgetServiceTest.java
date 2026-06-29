@@ -95,6 +95,25 @@ class BudgetServiceTest {
     }
 
     @Test
+    @DisplayName("usa il mese in corso come stima provvisoria quando non c'è ancora alcun mese passato completo")
+    void fallsBackToCurrentMonthWhenNoCompletedHistoryExists() {
+        YearMonth currentMonth = YearMonth.now();
+        LocalDate inCurrentMonth = currentMonth.atDay(1);
+        when(transactionRepo.findAllByOrderByTxDateDesc()).thenReturn(List.of(
+                tx(inCurrentMonth, "Alimentari", TransactionCategorizer.VARIABLE, "-300.00"),
+                tx(inCurrentMonth, "Stipendio", TransactionCategorizer.INCOME, "1500.00")
+        ));
+
+        BudgetDto budget = service.computeNextMonthBudget();
+
+        assertThat(budget.estimatedIncome()).isEqualTo(1500.00);
+        assertThat(budget.variableCostsEstimate()).isEqualTo(300.00);
+        assertThat(budget.basedOnCurrentMonthOnly()).isTrue();
+        assertThat(budget.hasEnoughData()).isFalse();
+        assertThat(budget.monthsOfHistory()).isEqualTo(0);
+    }
+
+    @Test
     @DisplayName("calcola le spese effettive del mese corrente per categoria, non una media storica")
     void computesCurrentMonthExpensesByCategory() {
         YearMonth currentMonth = YearMonth.now();

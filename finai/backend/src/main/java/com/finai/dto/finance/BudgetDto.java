@@ -17,5 +17,6 @@ public record BudgetDto(
         Double projectedSavings,
         Double investableAmount,
         int monthsOfHistory,
-        boolean hasEnoughData
+        boolean hasEnoughData,
+        boolean basedOnCurrentMonthOnly
 ) {}
