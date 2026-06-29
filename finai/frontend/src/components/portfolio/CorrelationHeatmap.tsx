@@ -56,7 +56,7 @@ export function CorrelationHeatmap() {
 
       {/* Matrice */}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse' }}>
+        <table aria-label="Matrice di correlazione tra i ticker del portafoglio, valori da -1 a 1 con codifica a colori" style={{ borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={{ width: 56 }} />
@@ -112,7 +112,7 @@ export function CorrelationHeatmap() {
           { color: 'rgba(139, 92, 246, 0.6)', label: 'Inv. alta' },
         ].map(l => (
           <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{ width: 12, height: 12, background: l.color, borderRadius: 2 }} />
+            <div aria-hidden="true" style={{ width: 12, height: 12, background: l.color, borderRadius: 2 }} />
             <span style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>{l.label}</span>
           </div>
         ))}

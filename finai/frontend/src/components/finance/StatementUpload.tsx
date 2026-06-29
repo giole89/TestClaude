@@ -38,6 +38,15 @@ export function StatementUpload() {
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files?.[0]) }}
+        role="button"
+        tabIndex={0}
+        aria-label="Area di caricamento estratto conto: trascina un file PDF o Excel oppure premi Invio per selezionarlo"
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            inputRef.current?.click()
+          }
+        }}
         style={{
           border: `2px dashed ${dragOver ? 'var(--acc)' : 'var(--border)'}`,
           borderRadius: 10, padding: '24px 16px', textAlign: 'center', cursor: 'pointer',

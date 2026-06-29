@@ -102,6 +102,7 @@ export function FixedExpensesManager() {
               <div style={{ color: 'var(--text)', minWidth: 80, textAlign: 'right' }}>{formatNumber(f.amount, 2)} €</div>
               <button
                 onClick={() => deleteFixedExpense(f.id)}
+                aria-label={`Elimina costo fisso ${f.name}`}
                 style={{
                   background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer',
                   fontFamily: 'Syne', fontSize: 11, padding: '4px 8px',

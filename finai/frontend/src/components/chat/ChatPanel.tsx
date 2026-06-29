@@ -106,6 +106,7 @@ export function ChatPanel({ tabKey, context, quickActions = [], placeholder = 'S
         <button
           onClick={handleSend}
           disabled={sending || !input.trim()}
+          aria-label="Invia messaggio"
           style={{
             padding: '8px 16px', borderRadius: 8,
             background: sending || !input.trim() ? 'var(--s3)' : 'var(--acc)',

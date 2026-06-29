@@ -42,7 +42,11 @@ export function ExpensesPieChart() {
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ minWidth: 280, flex: '1 1 320px' }}>
+          <div
+            role="img"
+            aria-label={`Grafico a torta delle spese del mese per categoria, totale ${formatNumber(currentMonthExpenses.total, 2)} €`}
+            style={{ minWidth: 280, flex: '1 1 320px' }}
+          >
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
                 <Pie
@@ -79,7 +83,7 @@ export function ExpensesPieChart() {
                 {currentMonthExpenses.byCategory.map((c, idx) => (
                   <tr key={c.category} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '4px 8px' }}>
-                      <span style={{
+                      <span aria-hidden="true" style={{
                         display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
                         background: COLORS[idx % COLORS.length],
                       }} />

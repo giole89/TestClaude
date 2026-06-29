@@ -11,7 +11,7 @@ export function Header() {
       position: 'sticky', top: 0, zIndex: 100,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-        <svg viewBox="0 0 100 100" width={32} height={32}>
+        <svg viewBox="0 0 100 100" width={32} height={32} aria-hidden="true">
           <ellipse cx="22" cy="22" rx="14" ry="14" fill="#1a1a1a"/>
           <ellipse cx="78" cy="22" rx="14" ry="14" fill="#1a1a1a"/>
           <ellipse cx="50" cy="54" rx="38" ry="36" fill="#f0f0f0"/>
@@ -43,6 +43,7 @@ export function Header() {
           color: 'var(--text)', fontSize: 16,
         }}
         title="Cambia tema"
+        aria-label={theme === 'dark' ? 'Passa al tema chiaro' : 'Passa al tema scuro'}
       >
         {theme === 'dark' ? '☀️' : '🌙'}
       </button>

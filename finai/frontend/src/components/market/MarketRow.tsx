@@ -22,6 +22,15 @@ export function MarketRow({ rank, quote, mode, onAnalyze }: Props) {
   return (
     <div
       onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`Analizza ${quote.ticker} — ${quote.name}`}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleClick()
+        }
+      }}
       style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '8px 12px', borderRadius: 8,

@@ -40,7 +40,7 @@ export function NavTabs() {
             transition: 'all 0.15s ease',
           }}
         >
-          <span>{tab.icon}</span>
+          <span aria-hidden="true">{tab.icon}</span>
           <span>{tab.label}</span>
         </button>
       ))}

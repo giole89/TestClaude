@@ -12,6 +12,8 @@ export function PandaLoader() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          role="status"
+          aria-live="polite"
           style={{
             position: 'fixed', inset: 0, zIndex: 9999,
             display: 'flex', flexDirection: 'column',
@@ -24,7 +26,7 @@ export function PandaLoader() {
             animate={{ y: [0, -12, 0] }}
             transition={{ repeat: Infinity, duration: 0.8, ease: 'easeInOut' }}
           >
-            <svg viewBox="0 0 100 100" width={90} height={90}>
+            <svg viewBox="0 0 100 100" width={90} height={90} aria-hidden="true">
               <ellipse cx="22" cy="22" rx="14" ry="14" fill="#1a1a1a"/>
               <ellipse cx="78" cy="22" rx="14" ry="14" fill="#1a1a1a"/>
               <ellipse cx="50" cy="54" rx="38" ry="36" fill="#f0f0f0"/>

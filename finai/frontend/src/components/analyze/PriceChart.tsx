@@ -132,26 +132,27 @@ export function PriceChart({ history, ticker }: Props) {
       <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
         {chartType === 'line' ? (
           <span style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--text)' }}>
-            <span style={{ display: 'inline-block', width: 16, height: 2, background: 'var(--acc)', marginRight: 4, verticalAlign: 'middle' }} />
+            <span aria-hidden="true" style={{ display: 'inline-block', width: 16, height: 2, background: 'var(--acc)', marginRight: 4, verticalAlign: 'middle' }} />
             Prezzo
           </span>
         ) : (
           <span style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--text)' }}>
-            <span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--acc)', marginRight: 4, verticalAlign: 'middle' }} />
+            <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--acc)', marginRight: 4, verticalAlign: 'middle' }} />
             Candele O/H/L/C
           </span>
         )}
         <span style={{ fontFamily: 'Syne', fontSize: 11, color: '#e8c542' }}>
-          <span style={{ display: 'inline-block', width: 16, height: 2, background: '#e8c542', marginRight: 4, verticalAlign: 'middle', borderTop: '2px dashed #e8c542' }} />
+          <span aria-hidden="true" style={{ display: 'inline-block', width: 16, height: 2, background: '#e8c542', marginRight: 4, verticalAlign: 'middle', borderTop: '2px dashed #e8c542' }} />
           SMA 20
         </span>
         <span style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--acc2)' }}>
-          <span style={{ display: 'inline-block', width: 16, height: 2, background: 'var(--acc2)', marginRight: 4, verticalAlign: 'middle', borderTop: '2px dashed var(--acc2)' }} />
+          <span aria-hidden="true" style={{ display: 'inline-block', width: 16, height: 2, background: 'var(--acc2)', marginRight: 4, verticalAlign: 'middle', borderTop: '2px dashed var(--acc2)' }} />
           SMA 50
         </span>
       </div>
 
-      <ResponsiveContainer width="100%" height={280}>
+      <div role="img" aria-label={`Grafico prezzi ${chartType === 'candle' ? 'a candele' : 'a linea'} di ${ticker} con medie mobili SMA 20 e SMA 50, periodo ${range}`}>
+        <ResponsiveContainer width="100%" height={280}>
         <ComposedChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis
@@ -189,7 +190,8 @@ export function PriceChart({ history, ticker }: Props) {
           <Line type="monotone" dataKey="sma20" stroke="#e8c542" dot={false} strokeWidth={1} strokeDasharray="4 2" name="SMA 20" connectNulls />
           <Line type="monotone" dataKey="sma50" stroke="var(--acc2)" dot={false} strokeWidth={1} strokeDasharray="4 2" name="SMA 50" connectNulls />
         </ComposedChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }
