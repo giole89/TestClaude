@@ -36,6 +36,10 @@ public class InvestorProfile {
     @Column(length = 30)
     private String horizon;
 
+    /** Liquidità già accantonata (conto deposito, conto corrente, ecc.), usata per il controllo del fondo di emergenza prima di consigliare investimenti. Null se non dichiarata. */
+    @Column(name = "liquid_savings", precision = 14, scale = 2)
+    private java.math.BigDecimal liquidSavings;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 }

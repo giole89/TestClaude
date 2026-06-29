@@ -84,6 +84,16 @@ public class InvestmentAdvisorService {
                 profile.allocation().equityPct(), profile.allocation().bondPct(), profile.allocation().liquidityPct()
         );
 
-        return new RecommendationDto(profile.label(), profile.allocation(), summary, profile.instruments(), goal, horizon, null, List.of());
+        return new RecommendationDto(profile.label(), profile.allocation(), summary, profile.instruments(), goal, horizon,
+                null, List.of(), null, null, pacNote());
+    }
+
+    /** Punto 5: la quota investibile calcolata dal budget è un surplus mensile ricorrente, non una somma unica: ha più senso investirla gradualmente. */
+    private String pacNote() {
+        return "La quota investibile stimata è un risparmio che si ripete ogni mese, non una somma unica disponibile oggi: "
+                + "per questo motivo, invece di provare a investirla tutta in un'unica soluzione (lump sum), valuta un Piano di "
+                + "Accumulo Capitale (PAC), cioè un versamento automatico di importo fisso ogni mese sugli stessi strumenti. "
+                + "Il PAC riduce il rischio di investire tutto in un momento sfavorevole del mercato (market timing), mediando nel "
+                + "tempo il prezzo di acquisto: è coerente con la natura ricorrente di questo risparmio.";
     }
 }

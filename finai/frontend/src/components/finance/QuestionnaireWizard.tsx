@@ -109,6 +109,36 @@ function RecommendationCard() {
         {recommendation.suggestedInstruments.map(i => <li key={i} style={{ marginBottom: 4 }}>{i}</li>)}
       </ul>
 
+      {recommendation.highInterestDebtWarning && (
+        <div style={{
+          marginTop: 14, padding: '10px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.1)',
+          border: '1px solid var(--red)', fontFamily: 'Syne', fontSize: 12, color: 'var(--red)', lineHeight: 1.5,
+        }}>
+          <span style={{ fontWeight: 700 }}>⚠ Prima estingui i debiti ad alto interesse: </span>
+          {recommendation.highInterestDebtWarning}
+        </div>
+      )}
+
+      {recommendation.emergencyFundWarning && (
+        <div style={{
+          marginTop: 14, padding: '10px 12px', borderRadius: 8, background: 'rgba(245,158,11,0.1)',
+          border: '1px solid var(--acc3)', fontFamily: 'Syne', fontSize: 12, color: 'var(--acc3)', lineHeight: 1.5,
+        }}>
+          <span style={{ fontWeight: 700 }}>🛟 Completa prima il fondo di emergenza: </span>
+          {recommendation.emergencyFundWarning}
+        </div>
+      )}
+
+      {recommendation.pacNote && (
+        <div style={{
+          marginTop: 14, padding: '10px 12px', borderRadius: 8, background: 'var(--s3)',
+          fontFamily: 'Syne', fontSize: 12, color: 'var(--muted2)', lineHeight: 1.5,
+        }}>
+          <span style={{ fontWeight: 700, color: 'var(--text)' }}>Come investirla: </span>
+          {recommendation.pacNote}
+        </div>
+      )}
+
       {recommendation.marketSnapshot && (
         <div style={{
           marginTop: 14, padding: '10px 12px', borderRadius: 8, background: 'var(--s3)',
@@ -128,13 +158,15 @@ export function QuestionnaireWizard() {
   const { profile, submitQuestionnaire, isSubmittingQuestionnaire } = useFinance()
   const [goal, setGoal] = useState<InvestmentGoal | null>(profile?.goal ?? null)
   const [horizon, setHorizon] = useState<InvestmentHorizon | null>(profile?.horizon ?? null)
+  const [liquidSavings, setLiquidSavings] = useState(profile?.liquidSavings != null ? String(profile.liquidSavings) : '')
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async () => {
     if (!goal || !horizon) return
     setError(null)
     try {
-      await submitQuestionnaire({ goal, horizon })
+      const parsed = parseFloat(liquidSavings)
+      await submitQuestionnaire({ goal, horizon, liquidSavings: liquidSavings.trim() === '' || isNaN(parsed) ? null : parsed })
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Impossibile calcolare il consiglio')
     }
@@ -165,6 +197,25 @@ export function QuestionnaireWizard() {
         {HORIZON_OPTIONS.map(o => (
           <OptionCard key={o.value} selected={horizon === o.value} label={o.label} onClick={() => setHorizon(o.value)} />
         ))}
+      </div>
+
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--muted2)', marginBottom: 8 }}>
+        3. Quanta liquidità hai già accantonata? <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(opzionale)</span>
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <input
+          value={liquidSavings}
+          onChange={e => setLiquidSavings(e.target.value)}
+          placeholder="€ in conto deposito/corrente"
+          type="number"
+          style={{
+            width: 220, background: 'var(--s3)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '10px 12px', color: 'var(--text)', fontFamily: 'JetBrains Mono', fontSize: 13, outline: 'none',
+          }}
+        />
+        <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+          Serve per verificare se il fondo di emergenza (3 mesi di spese) è già adeguato prima di consigliarti di investire.
+        </div>
       </div>
 
       {error && (

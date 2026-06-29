@@ -9,6 +9,7 @@ export function FixedExpensesManager() {
   const [name, setName] = useState('')
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0])
   const [amount, setAmount] = useState('')
+  const [interestRatePct, setInterestRatePct] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const total = fixedExpenses.filter(f => f.active).reduce((sum, f) => sum + f.amount, 0)
@@ -17,9 +18,13 @@ export function FixedExpensesManager() {
     setError(null)
     const value = parseFloat(amount)
     if (!name.trim() || isNaN(value) || value <= 0) return
+    const rate = parseFloat(interestRatePct)
     try {
-      await createFixedExpense({ name: name.trim(), category, amount: value })
-      setName(''); setAmount('')
+      await createFixedExpense({
+        name: name.trim(), category, amount: value,
+        interestRatePct: interestRatePct.trim() === '' || isNaN(rate) ? null : rate,
+      })
+      setName(''); setAmount(''); setInterestRatePct('')
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Impossibile salvare la spesa fissa')
     }
@@ -69,6 +74,17 @@ export function FixedExpensesManager() {
             borderRadius: 8, padding: '10px 12px', color: 'var(--text)', fontFamily: 'JetBrains Mono', fontSize: 13, outline: 'none',
           }}
         />
+        <input
+          value={interestRatePct}
+          onChange={e => setInterestRatePct(e.target.value)}
+          placeholder="% interesse (se debito)"
+          type="number"
+          title="Tasso di interesse annuo, solo se questa spesa fissa è la rata di un debito/finanziamento"
+          style={{
+            width: 130, background: 'var(--s3)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '10px 12px', color: 'var(--text)', fontFamily: 'JetBrains Mono', fontSize: 13, outline: 'none',
+          }}
+        />
         <button
           onClick={handleAdd}
           disabled={isCreatingFixedExpense || !name.trim() || !amount}
@@ -99,6 +115,11 @@ export function FixedExpensesManager() {
             }}>
               <div style={{ flex: 1, color: 'var(--text)', fontFamily: 'Syne', fontWeight: 600 }}>{f.name}</div>
               <div style={{ color: 'var(--muted)' }}>{f.category}</div>
+              {f.interestRatePct != null && (
+                <div style={{ color: 'var(--red)', fontSize: 11 }} title="Tasso di interesse annuo: debito/finanziamento">
+                  {formatNumber(f.interestRatePct, 1)}%
+                </div>
+              )}
               <div style={{ color: 'var(--text)', minWidth: 80, textAlign: 'right' }}>{formatNumber(f.amount, 2)} €</div>
               <button
                 onClick={() => deleteFixedExpense(f.id)}

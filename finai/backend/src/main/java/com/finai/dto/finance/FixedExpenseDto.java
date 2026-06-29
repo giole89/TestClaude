@@ -11,9 +11,11 @@ public record FixedExpenseDto(
         String  category,
         Double  amount,
         boolean active,
+        Double  interestRatePct,
         Instant createdAt
 ) {
     public static FixedExpenseDto from(FixedExpense e) {
-        return new FixedExpenseDto(e.getId(), e.getName(), e.getCategory(), e.getAmount().doubleValue(), e.isActive(), e.getCreatedAt());
+        return new FixedExpenseDto(e.getId(), e.getName(), e.getCategory(), e.getAmount().doubleValue(), e.isActive(),
+                e.getInterestRatePct() != null ? e.getInterestRatePct().doubleValue() : null, e.getCreatedAt());
     }
 }

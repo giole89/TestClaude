@@ -36,6 +36,10 @@ public class FixedExpense {
     @Column(nullable = false)
     private boolean active = true;
 
+    /** Tasso di interesse annuo (%) se questa spesa fissa è il pagamento di un debito/finanziamento. Null se non è un debito. */
+    @Column(name = "interest_rate_pct", precision = 5, scale = 2)
+    private BigDecimal interestRatePct;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 

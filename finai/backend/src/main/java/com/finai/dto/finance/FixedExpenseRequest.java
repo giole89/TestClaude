@@ -5,7 +5,12 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
-/** Corpo della richiesta di creazione/aggiornamento di una spesa fissa. */
+/**
+ * Corpo della richiesta di creazione/aggiornamento di una spesa fissa.
+ *
+ * @param interestRatePct tasso di interesse annuo (%) se questa spesa è il pagamento di un
+ *                         debito/finanziamento (es. rata prestito, carta revolving); null altrimenti
+ */
 public record FixedExpenseRequest(
         @NotBlank(message = "name obbligatorio")
         @Size(max = 100)
@@ -19,5 +24,7 @@ public record FixedExpenseRequest(
         @Positive(message = "amount deve essere positivo")
         Double amount,
 
-        Boolean active
+        Boolean active,
+
+        Double interestRatePct
 ) {}

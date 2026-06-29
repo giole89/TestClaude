@@ -30,6 +30,8 @@ export interface FixedExpense {
   category: string
   amount: number
   active: boolean
+  /** Tasso di interesse annuo (%) se questa spesa è il pagamento di un debito/finanziamento. */
+  interestRatePct: number | null
   createdAt: string
 }
 
@@ -38,6 +40,7 @@ export interface FixedExpenseInput {
   category: string
   amount: number
   active?: boolean
+  interestRatePct?: number | null
 }
 
 export interface CategoryAmount {
@@ -95,6 +98,7 @@ export interface InvestorProfile {
   goal: InvestmentGoal | null
   goalNote: string | null
   horizon: InvestmentHorizon | null
+  liquidSavings: number | null
   completed: boolean
 }
 
@@ -131,6 +135,12 @@ export interface Recommendation {
   horizon: string
   marketSnapshot: MarketSnapshot | null
   samplePortfolio: PortfolioLine[]
+  /** Non null se la liquidità dichiarata non copre 3-6 mesi di spese: completare il fondo di emergenza prima di investire. */
+  emergencyFundWarning: string | null
+  /** Non null se tra le spese fisse c'è un debito ad alto interesse: estinguerlo ha priorità rispetto a investire. */
+  highInterestDebtWarning: string | null
+  /** Suggerimento di investire la quota tramite un piano di accumulo (PAC) invece che in un'unica soluzione. */
+  pacNote: string
 }
 
 const TRANSACTIONS_KEY = ['financeTransactions']
@@ -258,7 +268,7 @@ export function useFinance() {
   })
 
   const submitQuestionnaire = useMutation({
-    mutationFn: (req: { goal: InvestmentGoal; goalNote?: string; horizon: InvestmentHorizon }) =>
+    mutationFn: (req: { goal: InvestmentGoal; goalNote?: string; horizon: InvestmentHorizon; liquidSavings?: number | null }) =>
       axios.post(`${API_BASE}/api/finance/questionnaire`, req).then(r => r.data as Recommendation),
     onSuccess: (data) => {
       qc.setQueryData(RECOMMENDATION_KEY, data)

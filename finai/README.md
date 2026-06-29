@@ -69,9 +69,13 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
 
 ### Finanza personale e simulazione (v3.0)
 - **Import estratto conto**: upload PDF (PDFBox) o Excel (Apache POI) con parsing heuristico multi-strategia e categorizzazione automatica per keyword (14 categorie di spesa, 5 di entrata)
-- **Spese fisse**: gestione costi ricorrenti mensili (affitto, mutuo, utenze, abbonamenti…) usati come base del budget
-- **Budget previsionale**: stima di entrate/uscite/risparmio investibile del mese successivo basata sulla media degli ultimi mesi completi, con fallback sul mese in corso quando non c'è ancora storico utilizzabile
-- **Questionario investitore**: 2 domande (obiettivo, orizzonte temporale) → motore a regole che propone un'allocazione equity/bond/liquidità
+- **Spese fisse**: gestione costi ricorrenti mensili (affitto, mutuo, utenze, abbonamenti…) usati come base del budget; può essere marcata come debito/finanziamento indicando un tasso di interesse annuo
+- **Budget previsionale**: stima di entrate/uscite/risparmio investibile del mese successivo basata sulla media degli ultimi mesi completi, con fallback sul mese in corso quando non c'è ancora storico utilizzabile; il saldo previsto può essere negativo (mese in perdita), distinto dalla quota investibile (sempre ≥ 0)
+- **Suggerimenti di risparmio**: analisi reale dei movimenti importati (categorie sovrappesate, regola 50/30/20, pagamenti ricorrenti, trend di spesa in aumento) con stima del risparmio mensile potenziale
+- **Questionario investitore**: obiettivo, orizzonte temporale e liquidità già accantonata → motore a regole che propone un'allocazione equity/bond/liquidità, arricchita da un portafoglio esempio in ETF reali
+- **Pesatura di portafoglio stile Markowitz**: il peso core/satellite di ciascun bucket (azionario/obbligazionario) è calcolato risolvendo la formula chiusa del portafoglio tangente a 2 asset (rendimento, volatilità e correlazione su storico a 3 anni), non più un confronto isolato di Sharpe ratio
+- **Controlli pre-investimento**: prima di consigliare di investire la quota disponibile, segnala se il fondo di emergenza (liquidità ≥ 3 mesi di spese) non è ancora adeguato o se tra le spese fisse c'è un debito ad alto interesse (≥ 6%/anno) da estinguere con priorità
+- **Suggerimento PAC**: la quota investibile è un risparmio mensile ricorrente, non una somma unica: il consiglio propone un piano di accumulo (dollar-cost averaging) invece di un investimento in un'unica soluzione
 - **Simulatore (paper trading)**: wallet virtuale da 100.000€, acquisti/vendite ai prezzi live di Yahoo Finance, calcolo P&L realizzato e non realizzato, reset in qualsiasi momento
 
 ---
@@ -743,23 +747,26 @@ Tab supportate nel context: `analyze` | `compare` | `portfolio` | `longterm` | `
 | `DELETE /api/finance/transactions` | Elimina più movimenti (body: lista di id) |
 | `DELETE /api/finance/transactions/all` | Elimina tutti i movimenti |
 | `GET /api/finance/fixed-expenses` | Elenco spese fisse mensili |
-| `POST /api/finance/fixed-expenses` | Crea spesa fissa (body: `{name, category, amount}`) |
+| `POST /api/finance/fixed-expenses` | Crea spesa fissa (body: `{name, category, amount, active?, interestRatePct?}`); `interestRatePct` se è la rata di un debito/finanziamento |
 | `PUT /api/finance/fixed-expenses/:id` | Aggiorna spesa fissa |
 | `DELETE /api/finance/fixed-expenses/:id` | Elimina spesa fissa |
-| `GET /api/finance/budget/next-month` | Budget previsionale mese successivo (entrate, costi fissi/variabili, risparmio investibile) |
+| `GET /api/finance/budget/next-month` | Budget previsionale mese successivo (entrate, costi fissi/variabili, saldo previsto `balance` anche negativo, quota investibile `investableAmount` ≥ 0, flag `deficit`) |
 | `GET /api/finance/expenses/current-month` | Spese variabili del mese corrente per categoria (pie chart) |
+| `GET /api/finance/insights` | Analizza i movimenti reali e produce suggerimenti di risparmio (categorie sovrappesate, regola 50/30/20, ricorrenze, trend) con stima del risparmio mensile potenziale |
 | `GET /api/finance/questionnaire` | Stato del questionario investitore |
-| `POST /api/finance/questionnaire` | Invia risposte (body: `{goal, goalNote, horizon}`) → consiglio di investimento |
-| `GET /api/finance/recommendation` | Consiglio basato sull'ultimo questionario completato |
+| `POST /api/finance/questionnaire` | Invia risposte (body: `{goal, goalNote, horizon, liquidSavings?}`) → consiglio di investimento; `liquidSavings` opzionale, usata per il controllo del fondo di emergenza |
+| `GET /api/finance/recommendation` | Consiglio basato sull'ultimo questionario completato: allocazione, portafoglio esempio in ETF reali, avviso fondo di emergenza/debiti ad alto interesse se rilevanti, suggerimento PAC |
 
 > Il budget previsionale si basa sulla media degli ultimi mesi storici **completi** che contengono almeno un'entrata; se non ce n'è ancora nessuno (storico vuoto o solo movimenti isolati senza entrate), la stima ricade sul mese in corso e la risposta segnala `basedOnCurrentMonthOnly: true`.
+>
+> Il consiglio di investimento segnala `emergencyFundWarning` se la liquidità dichiarata copre meno di 3 mesi di spese, e `highInterestDebtWarning` se tra le spese fisse c'è un debito con tasso ≥ 6%/anno: in entrambi i casi, sistemare la propria situazione finanziaria di base ha priorità rispetto a investire la quota disponibile.
 
 ---
 
 ## Persistenza dati — PostgreSQL
 
 Portfolio, alert, watchlist IPO/personale, simulazione e finanza personale sono persistiti su **PostgreSQL 16** via Spring Data JPA.
-Le migrazioni sono gestite da **Flyway** con versioning incrementale (9 tabelle totali, V1-V6).
+Le migrazioni sono gestite da **Flyway** con versioning incrementale (9 tabelle totali, V1-V7; V7 aggiunge `liquid_savings` a `investor_profile` e `interest_rate_pct` a `fixed_expenses` per i controlli pre-investimento).
 
 ### Schema
 
@@ -862,13 +869,14 @@ CREATE TABLE bank_transactions (
 
 -- fixed_expenses: costi fissi mensili inseriti manualmente (base del budget)
 CREATE TABLE fixed_expenses (
-    id          VARCHAR(36) PRIMARY KEY,
-    name        VARCHAR(100) NOT NULL,
-    category    VARCHAR(50) NOT NULL,
-    amount      NUMERIC(14,2) NOT NULL,
-    active      BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                 VARCHAR(36) PRIMARY KEY,
+    name               VARCHAR(100) NOT NULL,
+    category           VARCHAR(50) NOT NULL,
+    amount             NUMERIC(14,2) NOT NULL,
+    active             BOOLEAN NOT NULL DEFAULT TRUE,
+    interest_rate_pct  NUMERIC(5,2),              -- tasso annuo (%) se è la rata di un debito/finanziamento (V7)
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- investor_profile: profilo da questionario (singola riga "default", no multi-utente)
@@ -877,6 +885,7 @@ CREATE TABLE investor_profile (
     goal            VARCHAR(50),                 -- EMERGENCY|MAJOR_PURCHASE|RETIREMENT|GROWTH|OTHER
     goal_note       VARCHAR(255),
     horizon         VARCHAR(30),                 -- UNDER_1Y|Y1_3|Y3_5|Y5_10|OVER_10Y
+    liquid_savings  NUMERIC(14,2),                -- liquidità accantonata, per il controllo del fondo di emergenza (V7)
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
@@ -891,6 +900,7 @@ CREATE TABLE investor_profile (
 | V4 | `V4__create_watchlist.sql` | Tabella `watchlist_items` |
 | V5 | `V5__create_simulation.sql` | Tabelle `sim_wallet` (seed 100.000€), `sim_positions`, `sim_trades` |
 | V6 | `V6__create_personal_finance.sql` | Tabelle `bank_transactions`, `fixed_expenses`, `investor_profile` (seed riga "default") |
+| V7 | `V7__finance_savings_and_debt.sql` | Aggiunge `liquid_savings` a `investor_profile` e `interest_rate_pct` a `fixed_expenses` |
 
 ---
 

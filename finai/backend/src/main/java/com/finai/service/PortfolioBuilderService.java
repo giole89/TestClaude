@@ -24,15 +24,16 @@ import java.util.stream.Collectors;
  * riflette la capacità di rischio della persona, non la convenienza di un
  * singolo strumento. Il peso tra strumento "core" e "satellite" all'interno
  * di ciascun macro-bucket, invece, non è più un fisso 70/30 (azionario) o
- * 60/40 (obbligazionario): viene ricalcolato in base allo storico a 1 anno di
- * rendimento e volatilità di ciascun ETF, usando lo Sharpe ratio
- * (rendimento in eccesso rispetto a un tasso privo di rischio, diviso la
- * volatilità) come misura di rendimento aggiustato per il rischio — l'idea
- * alla base della Modern Portfolio Theory di Markowitz e dello Sharpe ratio
- * di William Sharpe: a parità di rischio "macro" già fissato dal profilo,
- * si tende a pesare di più lo strumento con il miglior rapporto
- * rendimento/rischio recente, entro limiti prudenziali che evitano di
- * snaturare la diversificazione del core.</p>
+ * 60/40 (obbligazionario): viene ricalcolato risolvendo la formula chiusa del
+ * portafoglio tangente a due asset della Modern Portfolio Theory di Markowitz,
+ * usando rendimento e volatilità annualizzati di ciascun ETF su uno storico a
+ * 3 anni (più robusto statisticamente di 1 anno solo) e la correlazione tra i
+ * due strumenti (via {@link CorrelationService}): a differenza di un confronto
+ * isolato tra Sharpe ratio, la formula tiene conto di come i due strumenti si
+ * muovono l'uno rispetto all'altro, così una bassa correlazione può comunque
+ * spingere a diversificare anche quando un singolo Sharpe ratio sembrerebbe
+ * suggerire di concentrarsi su un solo strumento, entro limiti prudenziali che
+ * evitano di snaturare la diversificazione del core.</p>
  *
  * <p>È un esempio illustrativo a scopo informativo, non una raccomandazione
  * di acquisto personalizzata.</p>
@@ -69,12 +70,15 @@ public class PortfolioBuilderService {
     private static final double BOND_CORE_MIN = 0.4;
     private static final double BOND_CORE_MAX = 0.75;
 
-    private record Metrics(double annualizedReturn, double annualizedVolatility, double sharpeRatio, boolean reliable) {}
+    private record Metrics(double annualizedReturn, double annualizedVolatility, double sharpeRatio,
+                            double[] dailyReturns, boolean reliable) {}
 
     private final YahooFinanceService yahoo;
+    private final CorrelationService correlation;
 
-    public PortfolioBuilderService(YahooFinanceService yahoo) {
+    public PortfolioBuilderService(YahooFinanceService yahoo, CorrelationService correlation) {
         this.yahoo = yahoo;
+        this.correlation = correlation;
     }
 
     public Result build(AllocationDto allocation, String goal) {
@@ -111,7 +115,7 @@ public class PortfolioBuilderService {
 
                 Metrics coreMetrics = metricsFor(EQUITY_CORE);
                 Metrics satMetrics = metricsFor(satTicker);
-                double coreWeightShare = sharpeWeightedShare(coreMetrics, satMetrics, EQUITY_CORE_DEFAULT, EQUITY_CORE_MIN, EQUITY_CORE_MAX);
+                double coreWeightShare = markowitzCoreShare(coreMetrics, satMetrics, EQUITY_CORE_DEFAULT, EQUITY_CORE_MIN, EQUITY_CORE_MAX);
 
                 double core = round1(allocation.equityPct() * coreWeightShare);
                 double satellite = round1(allocation.equityPct() - core);
@@ -130,7 +134,7 @@ public class PortfolioBuilderService {
             if (allocation.bondPct() >= 20) {
                 Metrics coreMetrics = metricsFor(BOND_CORE);
                 Metrics satMetrics = metricsFor(BOND_SATELLITE);
-                double coreWeightShare = sharpeWeightedShare(coreMetrics, satMetrics, BOND_CORE_DEFAULT, BOND_CORE_MIN, BOND_CORE_MAX);
+                double coreWeightShare = markowitzCoreShare(coreMetrics, satMetrics, BOND_CORE_DEFAULT, BOND_CORE_MIN, BOND_CORE_MAX);
 
                 double core = round1(allocation.bondPct() * coreWeightShare);
                 double satellite = round1(allocation.bondPct() - core);
@@ -153,51 +157,81 @@ public class PortfolioBuilderService {
         return new Result(snapshot, portfolio);
     }
 
-    // ─────────────────────────────── Pesatura statistica (Sharpe) ─────────────
+    // ───────────────────────── Pesatura statistica (Markowitz a 2 asset) ──────
+
+    private static final String HISTORY_RANGE = "3y";
+    /** Minimo di ritorni giornalieri richiesti su uno storico ~3y (≈750 giorni di borsa) perché la stima sia considerata attendibile. */
+    private static final int MIN_RELIABLE_RETURNS = 150;
 
     /**
      * Calcola rendimento, volatilità annualizzati e Sharpe ratio di un ticker
-     * sullo storico daily a 1 anno. Se i dati sono insufficienti (errore di
-     * rete, ticker nuovo, ecc.) restituisce {@code reliable=false}: in quel
-     * caso il chiamante ricade sullo split predefinito.
+     * sullo storico daily a 3 anni (più stabile statisticamente di una
+     * finestra a 1 anno, che su pochi mesi può essere dominata da rumore di
+     * breve periodo). Se i dati sono insufficienti (errore di rete, ticker
+     * nuovo, ecc.) restituisce {@code reliable=false}: in quel caso il
+     * chiamante ricade sullo split predefinito.
      */
     private Metrics metricsFor(String ticker) {
-        List<HistoryPoint> history = yahoo.fetchHistory(ticker, "1y");
-        List<Double> dailyReturns = new ArrayList<>();
-        for (int i = 1; i < history.size(); i++) {
-            Double prev = history.get(i - 1).close();
-            Double curr = history.get(i).close();
-            if (prev != null && curr != null && prev > 0) {
-                dailyReturns.add((curr - prev) / prev);
-            }
-        }
-        if (dailyReturns.size() < 60) return new Metrics(0, 0, 0, false);
+        List<HistoryPoint> history = yahoo.fetchHistory(ticker, HISTORY_RANGE);
+        double[] dailyReturns = correlation.calcDailyReturns(history);
+        if (dailyReturns.length < MIN_RELIABLE_RETURNS) return new Metrics(0, 0, 0, dailyReturns, false);
 
-        double meanDaily = dailyReturns.stream().mapToDouble(d -> d).average().orElse(0);
-        double variance = dailyReturns.stream().mapToDouble(d -> Math.pow(d - meanDaily, 2)).average().orElse(0);
+        double meanDaily = java.util.Arrays.stream(dailyReturns).average().orElse(0);
+        double variance = java.util.Arrays.stream(dailyReturns).map(d -> Math.pow(d - meanDaily, 2)).average().orElse(0);
         double dailyVol = Math.sqrt(variance);
 
         double annualizedReturn = meanDaily * TRADING_DAYS_PER_YEAR;
         double annualizedVolatility = dailyVol * Math.sqrt(TRADING_DAYS_PER_YEAR);
         double sharpe = annualizedVolatility > 0 ? (annualizedReturn - RISK_FREE_RATE) / annualizedVolatility : 0;
 
-        return new Metrics(annualizedReturn, annualizedVolatility, sharpe, true);
+        return new Metrics(annualizedReturn, annualizedVolatility, sharpe, dailyReturns, true);
     }
 
     /**
-     * Quota da assegnare al "core" entro [min, max], spostata rispetto al
-     * default in base al confronto tra gli Sharpe ratio di core e satellite:
-     * lo strumento con il miglior rendimento aggiustato per il rischio pesa
-     * di più, senza mai sbilanciare oltre i limiti prudenziali.
+     * Quota da assegnare al "core" entro [min, max], calcolata risolvendo la
+     * formula chiusa del portafoglio tangente (massimo Sharpe ratio) per due
+     * asset della Modern Portfolio Theory:
+     * <pre>
+     * w_core = [(r_core-rf)·σ_sat² - (r_sat-rf)·ρ·σ_core·σ_sat]
+     *        / [(r_core-rf)·σ_sat² + (r_sat-rf)·σ_core² - ((r_core-rf)+(r_sat-rf))·ρ·σ_core·σ_sat]
+     * </pre>
+     * A differenza di un confronto isolato tra Sharpe ratio, questa formula
+     * incorpora anche la correlazione ρ tra i due strumenti: una bassa o
+     * negativa correlazione riduce il rischio combinato e quindi può spingere
+     * verso una maggiore diversificazione anche quando un singolo Sharpe
+     * ratio premierebbe la concentrazione. Il peso risultante resta comunque
+     * vincolato entro [min, max] per non snaturare la diversificazione del
+     * core, e ricade sul default se le metriche non sono attendibili o se la
+     * formula degenera (denominatore vicino a zero).
      */
-    private double sharpeWeightedShare(Metrics core, Metrics satellite, double defaultShare, double min, double max) {
+    private double markowitzCoreShare(Metrics core, Metrics satellite, double defaultShare, double min, double max) {
         if (!core.reliable() || !satellite.reliable()) return defaultShare;
 
-        // Sposta gli Sharpe ratio su un dominio positivo per poterli usare come pesi proporzionali.
-        double a = Math.max(core.sharpeRatio(), 0.05);
-        double b = Math.max(satellite.sharpeRatio(), 0.05);
-        double share = a / (a + b);
+        double rho = pairwiseCorrelation(core, satellite);
+
+        double excessCore = core.annualizedReturn() - RISK_FREE_RATE;
+        double excessSat = satellite.annualizedReturn() - RISK_FREE_RATE;
+        double varCore = core.annualizedVolatility() * core.annualizedVolatility();
+        double varSat = satellite.annualizedVolatility() * satellite.annualizedVolatility();
+        double covCoreSat = rho * core.annualizedVolatility() * satellite.annualizedVolatility();
+
+        double numerator = excessCore * varSat - excessSat * covCoreSat;
+        double denominator = excessCore * varSat + excessSat * varCore - (excessCore + excessSat) * covCoreSat;
+
+        if (Math.abs(denominator) < 1e-9) return defaultShare;
+
+        double share = numerator / denominator;
+        if (Double.isNaN(share) || Double.isInfinite(share)) return defaultShare;
         return Math.min(Math.max(share, min), max);
+    }
+
+    /** Correlazione di Pearson tra i ritorni giornalieri di core e satellite, allineati alla lunghezza comune minima. */
+    private double pairwiseCorrelation(Metrics core, Metrics satellite) {
+        int len = Math.min(core.dailyReturns().length, satellite.dailyReturns().length);
+        if (len < 2) return 0.0;
+        double[] a = java.util.Arrays.copyOf(core.dailyReturns(), len);
+        double[] b = java.util.Arrays.copyOf(satellite.dailyReturns(), len);
+        return correlation.pearson(a, b);
     }
 
     private String statRationale(Metrics core, Metrics satellite, double coreShare, boolean isCore) {
@@ -205,9 +239,10 @@ public class PortfolioBuilderService {
         String pesoLabel = isCore ? "core" : "satellite";
         double sharpeShown = isCore ? core.sharpeRatio() : satellite.sharpeRatio();
         double weightShown = isCore ? coreShare : 1 - coreShare;
+        double rho = pairwiseCorrelation(core, satellite);
         return String.format(Locale.ITALIAN,
-                " — Sharpe a 1 anno %.2f (peso %s %.0f%%, calibrato sul rendimento aggiustato per il rischio)",
-                sharpeShown, pesoLabel, weightShown * 100);
+                " — Sharpe a 3 anni %.2f, correlazione core/satellite %.2f (peso %s %.0f%%, da formula del portafoglio tangente di Markowitz)",
+                sharpeShown, rho, pesoLabel, weightShown * 100);
     }
 
     private PortfolioLineDto line(Map<String, QuoteDto> quotes, String ticker, String fallbackName, String assetClass,

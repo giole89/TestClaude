@@ -194,6 +194,7 @@ public class FinanceService {
         e.setCategory(req.category());
         e.setAmount(java.math.BigDecimal.valueOf(req.amount()));
         e.setActive(req.active() == null || req.active());
+        e.setInterestRatePct(req.interestRatePct() != null ? java.math.BigDecimal.valueOf(req.interestRatePct()) : null);
     }
 
     // ─────────────────────────────────── Budget ────────────────────────────────
@@ -222,9 +223,10 @@ public class FinanceService {
         profile.setGoal(req.goal().toUpperCase());
         profile.setGoalNote(req.goalNote());
         profile.setHorizon(req.horizon().toUpperCase());
+        profile.setLiquidSavings(req.liquidSavings() != null ? java.math.BigDecimal.valueOf(req.liquidSavings()) : null);
         profile.setUpdatedAt(Instant.now());
         profileRepo.save(profile);
-        return withMarketPortfolio(advisorService.recommend(profile));
+        return withMarketPortfolio(advisorService.recommend(profile), profile);
     }
 
     public RecommendationDto getRecommendation() {
@@ -232,13 +234,59 @@ public class FinanceService {
         if (profile.getGoal() == null || profile.getHorizon() == null) {
             throw new FinaiException("Questionario non ancora completato", 404);
         }
-        return withMarketPortfolio(advisorService.recommend(profile));
+        return withMarketPortfolio(advisorService.recommend(profile), profile);
     }
 
-    private RecommendationDto withMarketPortfolio(RecommendationDto base) {
+    /** Mesi minimi di spese che il fondo di emergenza dovrebbe coprire prima di consigliare investimenti (Ramsey/Bogleheads). */
+    private static final int EMERGENCY_FUND_TARGET_MONTHS = 3;
+    /** Tasso di interesse annuo (%) sopra il quale un debito tra le spese fisse è considerato "ad alto costo": estinguerlo batte quasi sempre il rendimento atteso di un investimento. */
+    private static final double HIGH_INTEREST_THRESHOLD_PCT = 6.0;
+
+    private RecommendationDto withMarketPortfolio(RecommendationDto base, InvestorProfile profile) {
         PortfolioBuilderService.Result result = portfolioBuilder.build(base.allocation(), base.goal());
         return new RecommendationDto(base.profileLabel(), base.allocation(), base.summary(), base.suggestedInstruments(),
-                base.goal(), base.horizon(), result.snapshot(), result.portfolio());
+                base.goal(), base.horizon(), result.snapshot(), result.portfolio(),
+                emergencyFundWarning(profile), highInterestDebtWarning(), base.pacNote());
+    }
+
+    /** Punto 3: se la liquidità dichiarata non copre almeno EMERGENCY_FUND_TARGET_MONTHS mesi di spese, segnala di completare il fondo di emergenza prima di investire. Null se non c'è abbastanza informazione (liquidSavings non dichiarata) o se il fondo è già adeguato. */
+    private String emergencyFundWarning(InvestorProfile profile) {
+        if (profile.getLiquidSavings() == null) return null;
+
+        BudgetDto budget = budgetService.computeNextMonthBudget();
+        double monthlyEssentialExpenses = budget.fixedCosts() + budget.variableCostsEstimate();
+        if (monthlyEssentialExpenses <= 0) return null;
+
+        double monthsCovered = profile.getLiquidSavings().doubleValue() / monthlyEssentialExpenses;
+        if (monthsCovered >= EMERGENCY_FUND_TARGET_MONTHS) return null;
+
+        double targetAmount = monthlyEssentialExpenses * EMERGENCY_FUND_TARGET_MONTHS;
+        double missing = Math.max(0, targetAmount - profile.getLiquidSavings().doubleValue());
+        return String.format(java.util.Locale.ITALIAN,
+                "Hai dichiarato circa %.0f € di liquidità accantonata, pari a %.1f mesi di spese: copre meno dei %d mesi "
+                + "generalmente consigliati come fondo di emergenza prima di investire. Prima di destinare la quota investibile "
+                + "ai mercati, valuta di accantonarne ancora circa %.0f € in forma liquida e prontamente disponibile (conto "
+                + "deposito o conto corrente), per non doverti trovare a vendere investimenti in perdita in caso di imprevisto.",
+                profile.getLiquidSavings().doubleValue(), monthsCovered, EMERGENCY_FUND_TARGET_MONTHS, missing);
+    }
+
+    /** Punto 4: se tra le spese fisse attive c'è un debito con interesse annuo sopra soglia, segnala che estinguerlo ha priorità rispetto a investire. Null se nessun debito ad alto interesse è presente. */
+    private String highInterestDebtWarning() {
+        List<FixedExpense> debts = fixedExpenseRepo.findByActiveTrue().stream()
+                .filter(e -> e.getInterestRatePct() != null && e.getInterestRatePct().doubleValue() >= HIGH_INTEREST_THRESHOLD_PCT)
+                .toList();
+        if (debts.isEmpty()) return null;
+
+        double totalMonthly = debts.stream().mapToDouble(e -> e.getAmount().doubleValue()).sum();
+        double maxRate = debts.stream().mapToDouble(e -> e.getInterestRatePct().doubleValue()).max().orElse(0);
+        String names = debts.stream().map(FixedExpense::getName).distinct().reduce((a, b) -> a + ", " + b).orElse("");
+
+        return String.format(java.util.Locale.ITALIAN,
+                "Tra le spese fisse risultano %d debiti/finanziamenti (%s) con tasso fino al %.1f%% annuo, per %.0f €/mese: "
+                + "estinguerli (anche in anticipo, se possibile senza penali) è quasi sempre più conveniente che investire la "
+                + "quota disponibile, perché equivale a un rendimento garantito pari al tasso di interesse evitato — superiore "
+                + "al rendimento atteso della maggior parte degli investimenti, e senza alcun rischio di mercato.",
+                debts.size(), names, maxRate, totalMonthly);
     }
 
     private InvestorProfile loadProfile() {
