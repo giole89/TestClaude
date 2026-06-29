@@ -47,9 +47,10 @@ public class BudgetService {
         // Il mese in corso non è ancora concluso: includerlo nella media storica la farebbe
         // risultare artificialmente più bassa (somma di un mese parziale divisa come se fosse
         // completo). La stima del prossimo mese si basa quindi sui mesi passati completi quando
-        // disponibili; se non ce n'è ancora nessuno (es. utente alle prime armi, ha importato solo
-        // l'estratto conto di questo mese) si ricade sul mese in corso piuttosto che mostrare zero
-        // ovunque, segnalando comunque che si tratta di una stima provvisoria.
+        // disponibili; se non ce n'è ancora nessuno, o se quelli trovati non contengono nemmeno
+        // un'entrata (es. una singola transazione residua isolata, non un mese di attività reale),
+        // si ricade sul mese in corso piuttosto che produrre una stima palesemente inutile (entrate
+        // a zero), segnalando comunque che si tratta di una stima provvisoria.
         List<YearMonth> completedMonths = all.stream()
                 .map(t -> YearMonth.from(t.getTxDate()))
                 .distinct()
@@ -58,7 +59,12 @@ public class BudgetService {
                 .limit(LOOKBACK_MONTHS)
                 .toList();
 
-        boolean basedOnCurrentMonthOnly = completedMonths.isEmpty()
+        Set<YearMonth> completedMonthFilter = new HashSet<>(completedMonths);
+        boolean completedMonthsHaveIncome = all.stream()
+                .anyMatch(t -> completedMonthFilter.contains(YearMonth.from(t.getTxDate()))
+                        && TransactionCategorizer.INCOME.equals(t.getType()));
+
+        boolean basedOnCurrentMonthOnly = (completedMonths.isEmpty() || !completedMonthsHaveIncome)
                 && all.stream().anyMatch(t -> YearMonth.from(t.getTxDate()).equals(currentMonth));
         List<YearMonth> recentMonths = basedOnCurrentMonthOnly ? List.of(currentMonth) : completedMonths;
 
@@ -111,8 +117,8 @@ public class BudgetService {
                 incomeByCategory,
                 savings,
                 savings,
-                completedMonths.size(),
-                !completedMonths.isEmpty(),
+                basedOnCurrentMonthOnly ? 0 : completedMonths.size(),
+                !basedOnCurrentMonthOnly && !completedMonths.isEmpty(),
                 basedOnCurrentMonthOnly
         );
     }

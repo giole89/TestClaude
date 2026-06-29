@@ -114,6 +114,30 @@ class BudgetServiceTest {
     }
 
     @Test
+    @DisplayName("ignora un mese passato senza alcuna entrata (transazione residua isolata) e ricade sul mese in corso")
+    void ignoresCompletedMonthWithoutAnyIncome() {
+        YearMonth currentMonth = YearMonth.now();
+        LocalDate inCurrentMonth = currentMonth.atDay(10);
+        LocalDate staleMonth = currentMonth.minusMonths(3).atDay(15);
+        when(transactionRepo.findAllByOrderByTxDateDesc()).thenReturn(List.of(
+                // Mese passato "completo" ma con un'unica transazione residua, senza alcuna entrata:
+                // non rappresenta un mese reale di attività e non deve essere usato come base di stima.
+                tx(staleMonth, "Alimentari", TransactionCategorizer.VARIABLE, "-5.11"),
+                // Mese in corso: dati reali (entrate e spese) ma ancora in corso.
+                tx(inCurrentMonth, "Alimentari", TransactionCategorizer.VARIABLE, "-300.00"),
+                tx(inCurrentMonth, "Stipendio", TransactionCategorizer.INCOME, "1500.00")
+        ));
+
+        BudgetDto budget = service.computeNextMonthBudget();
+
+        assertThat(budget.estimatedIncome()).isEqualTo(1500.00);
+        assertThat(budget.variableCostsEstimate()).isEqualTo(300.00);
+        assertThat(budget.basedOnCurrentMonthOnly()).isTrue();
+        assertThat(budget.hasEnoughData()).isFalse();
+        assertThat(budget.monthsOfHistory()).isEqualTo(0);
+    }
+
+    @Test
     @DisplayName("calcola le spese effettive del mese corrente per categoria, non una media storica")
     void computesCurrentMonthExpensesByCategory() {
         YearMonth currentMonth = YearMonth.now();
