@@ -10,13 +10,21 @@ import { formatNumber, formatDate, colorForChange } from '@/lib/formatters'
 type TypeFilter = 'ALL' | 'INCOME' | 'VARIABLE_EXPENSE'
 
 function TransactionEditRow({ transaction, onCancel }: { transaction: import('@/hooks/useFinance').Transaction; onCancel: () => void }) {
-  const { updateTransaction, isUpdatingTransaction } = useFinance()
-  const [category, setCategory] = useState(transaction.category)
+  const { updateTransaction, isUpdatingTransaction, transactionCategories } = useFinance()
   const [type, setType] = useState<'INCOME' | 'VARIABLE_EXPENSE'>(transaction.type)
+  const options = type === 'INCOME' ? transactionCategories.income : transactionCategories.expense
+  const [category, setCategory] = useState(
+    options.includes(transaction.category) ? transaction.category : (options[0] ?? transaction.category)
+  )
+
+  const handleTypeChange = (next: 'INCOME' | 'VARIABLE_EXPENSE') => {
+    setType(next)
+    const nextOptions = next === 'INCOME' ? transactionCategories.income : transactionCategories.expense
+    if (!nextOptions.includes(category)) setCategory(nextOptions[0] ?? category)
+  }
 
   const handleSave = async () => {
-    if (!category.trim()) return
-    await updateTransaction({ id: transaction.id, req: { category: category.trim(), type } })
+    await updateTransaction({ id: transaction.id, req: { category, type } })
     onCancel()
   }
 
@@ -27,19 +35,20 @@ function TransactionEditRow({ transaction, onCancel }: { transaction: import('@/
     }}>
       <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--muted2)', minWidth: 90 }}>{formatDate(transaction.date)}</div>
       <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--text)', flex: 1, minWidth: 140 }}>{transaction.description}</div>
-      <input
-        value={category}
-        onChange={e => setCategory(e.target.value)}
-        placeholder="Categoria"
-        style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontFamily: 'Syne', fontSize: 11, color: 'var(--text)', width: 130 }}
-      />
       <select
         value={type}
-        onChange={e => setType(e.target.value as 'INCOME' | 'VARIABLE_EXPENSE')}
+        onChange={e => handleTypeChange(e.target.value as 'INCOME' | 'VARIABLE_EXPENSE')}
         style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontFamily: 'Syne', fontSize: 11, color: 'var(--text)' }}
       >
         <option value="INCOME">Entrata</option>
         <option value="VARIABLE_EXPENSE">Uscita</option>
+      </select>
+      <select
+        value={category}
+        onChange={e => setCategory(e.target.value)}
+        style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontFamily: 'Syne', fontSize: 11, color: 'var(--text)', width: 150 }}
+      >
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
       <button
         onClick={handleSave}

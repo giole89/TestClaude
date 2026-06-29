@@ -302,8 +302,10 @@ public class StatementParserService {
                     runningBalance = value;
                     continue;
                 }
-                BigDecimal signed = isIncomeDescription(row.description()) ? value.abs() : value.abs().negate();
-                results.add(new RawTransaction(row.date(), row.description(), signed));
+                // Nessun segno "-" davanti all'importo: per il formato di questo estratto conto
+                // significa entrata (stipendio, regalo, ecc.), coerentemente con le righe a segno
+                // esplicito già gestite sopra (dove "-" indica sempre un'uscita).
+                results.add(new RawTransaction(row.date(), row.description(), value.abs()));
                 continue;
             }
 
@@ -396,8 +398,8 @@ public class StatementParserService {
                     runningBalance = value;
                     continue;
                 }
-                BigDecimal signed = isIncomeDescription(block.description()) ? value.abs() : value.abs().negate();
-                results.add(new RawTransaction(block.date(), block.description(), signed));
+                // Nessun segno "-" davanti all'importo: entrata (vedi commento sopra in parsePdfRows).
+                results.add(new RawTransaction(block.date(), block.description(), value.abs()));
                 continue;
             }
 

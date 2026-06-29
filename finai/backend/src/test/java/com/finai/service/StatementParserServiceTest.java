@@ -87,6 +87,23 @@ class StatementParserServiceTest {
         assertThat(result.get(1).amount()).isEqualByComparingTo(new BigDecimal("-650.00"));
     }
 
+    @Test
+    @DisplayName("quando l'importo non ha il segno \"-\" lo considera un'entrata (stipendio, regalo, ecc.), non solo se la descrizione contiene parole chiave")
+    void treatsUnsignedAmountsAsIncomeRegardlessOfDescription() throws Exception {
+        byte[] pdf = buildPdf(List.of(
+                "01/03/2024 Regalo zia Maria 200,00",
+                "02/03/2024 Da Mario per cena 30,00",
+                "05/03/2024 Affitto -650,00"
+        ));
+
+        List<RawTransaction> result = parser.parsePdf(new ByteArrayInputStream(pdf));
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).amount()).isEqualByComparingTo(new BigDecimal("200.00"));
+        assertThat(result.get(1).amount()).isEqualByComparingTo(new BigDecimal("30.00"));
+        assertThat(result.get(2).amount()).isEqualByComparingTo(new BigDecimal("-650.00"));
+    }
+
     private byte[] buildPdf(List<String> lines) throws Exception {
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage();

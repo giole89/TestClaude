@@ -4,6 +4,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -109,6 +111,21 @@ public class TransactionCategorizer {
         }
 
         return new Classification(isIncome ? "Altra entrata" : "Altro", isIncome ? INCOME : VARIABLE);
+    }
+
+    /** Tutte le categorie note per il tipo indicato (specifiche + generiche + fallback), per popolare un menu a tendina. */
+    public List<String> knownCategories(String type) {
+        Set<String> names = new LinkedHashSet<>();
+        if (INCOME.equals(type)) {
+            names.addAll(INCOME_CATEGORIES.keySet());
+            names.addAll(GENERIC_INCOME_HINTS.keySet());
+            names.add("Altra entrata");
+        } else {
+            names.addAll(EXPENSE_CATEGORIES.keySet());
+            names.addAll(GENERIC_EXPENSE_HINTS.keySet());
+            names.add("Altro");
+        }
+        return List.copyOf(names);
     }
 
     /** Etichette generiche tipiche dei file di alcune banche, prive di informazione utile alla classificazione. */

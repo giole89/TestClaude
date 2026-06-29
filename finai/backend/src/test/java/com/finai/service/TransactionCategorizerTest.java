@@ -62,4 +62,13 @@ class TransactionCategorizerTest {
         assertThat(categorizer.classify("Altro", new BigDecimal("10.00")))
                 .isEqualTo(new TransactionCategorizer.Classification("Altra entrata", TransactionCategorizer.INCOME));
     }
+
+    @Test
+    @DisplayName("elenca le categorie note per tipo, incluso il fallback, per popolare un menu a tendina")
+    void listsKnownCategoriesByType() {
+        assertThat(categorizer.knownCategories(TransactionCategorizer.INCOME))
+                .contains("Stipendio", "Pensione", "Bonifici ricevuti", "Altra entrata");
+        assertThat(categorizer.knownCategories(TransactionCategorizer.VARIABLE))
+                .contains("Alimentari", "Veterinario", "Salute", "Bonifici", "Altro");
+    }
 }

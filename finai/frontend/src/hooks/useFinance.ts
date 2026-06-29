@@ -64,6 +64,11 @@ export interface MonthlyExpenses {
   byCategory: CategoryAmount[]
 }
 
+export interface TransactionCategories {
+  income: string[]
+  expense: string[]
+}
+
 export type InvestmentGoal = 'EMERGENCY' | 'MAJOR_PURCHASE' | 'RETIREMENT' | 'GROWTH' | 'OTHER'
 export type InvestmentHorizon = 'UNDER_1Y' | 'Y1_3' | 'Y3_5' | 'Y5_10' | 'OVER_10Y'
 
@@ -110,6 +115,7 @@ export interface Recommendation {
 }
 
 const TRANSACTIONS_KEY = ['financeTransactions']
+const TRANSACTION_CATEGORIES_KEY = ['financeTransactionCategories']
 const FIXED_EXPENSES_KEY = ['financeFixedExpenses']
 const BUDGET_KEY = ['financeBudget']
 const CURRENT_MONTH_EXPENSES_KEY = ['financeCurrentMonthExpenses']
@@ -123,6 +129,12 @@ export function useFinance() {
     queryKey: TRANSACTIONS_KEY,
     queryFn: () => axios.get(`${API_BASE}/api/finance/transactions`).then(r => r.data),
     staleTime: 30_000,
+  })
+
+  const transactionCategories = useQuery<TransactionCategories>({
+    queryKey: TRANSACTION_CATEGORIES_KEY,
+    queryFn: () => axios.get(`${API_BASE}/api/finance/transactions/categories`).then(r => r.data),
+    staleTime: 5 * 60_000,
   })
 
   const fixedExpenses = useQuery<FixedExpense[]>({
@@ -228,6 +240,7 @@ export function useFinance() {
   return {
     transactions: transactions.data ?? [],
     isLoadingTransactions: transactions.isLoading,
+    transactionCategories: transactionCategories.data ?? { income: [], expense: [] },
     fixedExpenses: fixedExpenses.data ?? [],
     isLoadingFixedExpenses: fixedExpenses.isLoading,
     budget: budget.data,

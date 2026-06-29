@@ -48,6 +48,12 @@ public class FinanceController {
         return ResponseEntity.ok(service.getTransactions());
     }
 
+    @GetMapping("/transactions/categories")
+    @Operation(summary = "Categorie note per il menu a tendina di correzione manuale di un movimento")
+    public ResponseEntity<TransactionCategoriesDto> transactionCategories() {
+        return ResponseEntity.ok(service.getTransactionCategories());
+    }
+
     @PutMapping("/transactions/{id}")
     @Operation(summary = "Corregge manualmente categoria/tipo di un movimento (es. entrata classificata come uscita, o categoria 'Altro')")
     public ResponseEntity<TransactionDto> updateTransaction(@PathVariable String id, @Valid @RequestBody TransactionUpdateRequest req) {

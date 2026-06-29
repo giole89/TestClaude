@@ -101,6 +101,13 @@ public class FinanceService {
         return transactionRepo.findAllByOrderByTxDateDesc().stream().map(TransactionDto::from).toList();
     }
 
+    /** Categorie note per il menu a tendina usato nella correzione manuale dei movimenti. */
+    public TransactionCategoriesDto getTransactionCategories() {
+        return new TransactionCategoriesDto(
+                categorizer.knownCategories(TransactionCategorizer.INCOME),
+                categorizer.knownCategories(TransactionCategorizer.VARIABLE));
+    }
+
     @Transactional
     public void deleteTransaction(String id) {
         if (!transactionRepo.existsById(id)) throw new FinaiException("Movimento non trovato", 404);
