@@ -55,6 +55,19 @@ class TransactionCategorizerTest {
     }
 
     @Test
+    @DisplayName("distingue le cure veterinarie dalle spese generiche per animali (cibo, accessori, toelettatura)")
+    void distinguishesVeterinaryFromGeneralPetExpenses() {
+        assertThat(categorizer.classify("Clinica Veterinaria San Rocco", new BigDecimal("-85.00")).category())
+                .isEqualTo("Veterinario");
+        assertThat(categorizer.classify("Arcaplanet Cesano Boscone", new BigDecimal("-32.40")).category())
+                .isEqualTo("Animali");
+        assertThat(categorizer.classify("Toelettatura Fido", new BigDecimal("-25.00")).category())
+                .isEqualTo("Animali");
+        assertThat(categorizer.classify("Acquisto croccantini e mangimi", new BigDecimal("-18.90")).category())
+                .isEqualTo("Animali");
+    }
+
+    @Test
     @DisplayName("quando l'estratto conto riporta un'etichetta generica (es. \"Altro\") ricade comunque sulla categoria di default in base al segno")
     void fallsBackToGenericCategoryForGenericSourceLabels() {
         assertThat(categorizer.classify("Altro", new BigDecimal("-10.00")))

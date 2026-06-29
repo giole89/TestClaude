@@ -73,6 +73,7 @@ function TransactionsHistory() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const filtered = typeFilter === 'ALL' ? transactions : transactions.filter(t => t.type === typeFilter)
 
@@ -90,18 +91,34 @@ function TransactionsHistory() {
     setSelected(allSelected ? new Set() : new Set(filtered.map(t => t.id)))
   }
 
+  const handleDelete = (id: string) => {
+    setDeleteError(null)
+    deleteTransaction(id).catch((e: any) =>
+      setDeleteError(e?.response?.data?.error || 'Eliminazione non riuscita: il movimento potrebbe essere ancora presente.'))
+  }
+
   const handleDeleteSelected = async () => {
     if (selected.size === 0) return
     if (!window.confirm(`Eliminare ${selected.size} movimenti selezionati?`)) return
-    await deleteTransactions(Array.from(selected))
-    setSelected(new Set())
+    setDeleteError(null)
+    try {
+      await deleteTransactions(Array.from(selected))
+      setSelected(new Set())
+    } catch (e: any) {
+      setDeleteError(e?.response?.data?.error || 'Eliminazione non riuscita: i movimenti selezionati potrebbero essere ancora presenti.')
+    }
   }
 
   const handleDeleteAll = async () => {
     if (transactions.length === 0) return
     if (!window.confirm(`Eliminare tutti i ${transactions.length} movimenti importati? L'operazione non è reversibile.`)) return
-    await deleteAllTransactions()
-    setSelected(new Set())
+    setDeleteError(null)
+    try {
+      await deleteAllTransactions()
+      setSelected(new Set())
+    } catch (e: any) {
+      setDeleteError(e?.response?.data?.error || 'Eliminazione non riuscita: i movimenti importati potrebbero essere ancora presenti.')
+    }
   }
 
   return (
@@ -113,6 +130,14 @@ function TransactionsHistory() {
         >
           {show ? '▾' : '▸'} Movimenti importati ({transactions.length})
         </button>
+        {deleteError && (
+          <div style={{
+            background: 'rgba(239,68,68,0.1)', border: '1px solid var(--red)', borderRadius: 8,
+            padding: '4px 10px', color: 'var(--red)', fontFamily: 'Syne', fontSize: 11,
+          }}>
+            ⚠ {deleteError}
+          </div>
+        )}
         {show && (
           <div style={{ display: 'flex', gap: 8 }}>
             {(['ALL', 'INCOME', 'VARIABLE_EXPENSE'] as TypeFilter[]).map(f => (
@@ -188,7 +213,7 @@ function TransactionsHistory() {
                       ✎
                     </button>
                     <button
-                      onClick={() => deleteTransaction(t.id)}
+                      onClick={() => handleDelete(t.id)}
                       style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11 }}
                     >
                       ✕

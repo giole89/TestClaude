@@ -170,9 +170,11 @@ export function useFinance() {
   })
 
   const invalidateMoneyFlows = () => {
-    qc.invalidateQueries({ queryKey: TRANSACTIONS_KEY })
-    qc.invalidateQueries({ queryKey: BUDGET_KEY })
-    qc.invalidateQueries({ queryKey: CURRENT_MONTH_EXPENSES_KEY })
+    // refetchType 'all' forza il refetch anche di query non montate in questo momento:
+    // dopo un'eliminazione/import non deve restare visibile alcun dato in cache obsoleto.
+    qc.invalidateQueries({ queryKey: TRANSACTIONS_KEY, refetchType: 'all' })
+    qc.invalidateQueries({ queryKey: BUDGET_KEY, refetchType: 'all' })
+    qc.invalidateQueries({ queryKey: CURRENT_MONTH_EXPENSES_KEY, refetchType: 'all' })
   }
 
   const uploadStatement = useMutation({

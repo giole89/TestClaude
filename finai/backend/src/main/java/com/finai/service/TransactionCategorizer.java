@@ -34,8 +34,10 @@ public class TransactionCategorizer {
                 "enel", "eni gas", "hera", "a2a", "acea", "condominio", "affitto", "mutuo", "tari", "iren",
                 "fastweb", "tim ", "vodafone", "windtre", "wind ", "iliad", "gas", "luce", "acqua", "tigros", "imu", "rifiuti"));
         EXPENSE_CATEGORIES.put("Veterinario", Set.of(
-                "veterinario", "veterinaria", "clinica veterinaria", "ambulatorio veterinario", "vet ",
-                "petshop", "pet shop", "toelettatura", "mangimi", "croccantini"));
+                "veterinario", "veterinaria", "clinica veterinaria", "ambulatorio veterinario", "vet "));
+        EXPENSE_CATEGORIES.put("Animali", Set.of(
+                "petshop", "pet shop", "toelettatura", "mangimi", "croccantini", "negozio per animali",
+                "arcaplanet", "maxi zoo", "maxizoo", "zooplus", "lettiera", "guinzaglio", "antiparassitario"));
         EXPENSE_CATEGORIES.put("Salute", Set.of(
                 "farmacia", "parafarmacia", "medico", "dentista", "ospedale", "ticket sanitario", "ambulatorio",
                 "analisi", "studio medico", "fisioterapia", "psicologo", "oculista", "specialista"));
@@ -44,9 +46,10 @@ public class TransactionCategorizer {
         EXPENSE_CATEGORIES.put("Tempo libero", Set.of(
                 "cinema", "teatro", "viaggio", "hotel", "booking", "ryanair", "easyjet", "airbnb", "palestra", "gym", "trip.com", "expedia"));
         EXPENSE_CATEGORIES.put("Ristorazione", Set.of(
-                "ristorante", "pizzeria", "just eat", "deliveroo", "glovo", "bar ", "trattoria", "osteria", "caffe", "caffetteria", "gelateria"));
+                "ristorante", "pizzeria", "just eat", "deliveroo", "glovo", "bar ", "trattoria", "osteria", "caffe", "caffetteria",
+                "gelateria", "mcdonald", "burger king", "kfc"));
         EXPENSE_CATEGORIES.put("Shopping", Set.of(
-                "amazon", "zalando", "zara", "decathlon", "ikea", "mediaworld", "unieuro", "h&m", "vinted"));
+                "amazon", "zalando", "zara", "decathlon", "ikea", "mediaworld", "unieuro", "h&m", "vinted", "shein", "leroy merlin"));
         EXPENSE_CATEGORIES.put("Spese bancarie", Set.of(
                 "commissione", "commissioni", "imposta di bollo", "canone conto", "spese tenuta conto", "competenze", "tenuta conto"));
         EXPENSE_CATEGORIES.put("Assicurazioni", Set.of(
