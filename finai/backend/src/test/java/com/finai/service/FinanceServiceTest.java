@@ -87,6 +87,20 @@ class FinanceServiceTest {
     }
 
     @Test
+    @DisplayName("usa la categoria fornita dall'estratto conto (es. colonna CATEGORIA della banca) invece di indovinarla dalla descrizione")
+    void prefersSourceCategoryOverKeywordGuessing() {
+        RawTransaction rt = new RawTransaction(LocalDate.of(2026, 6, 21), "Ipertosano Cesano Boscone",
+                new BigDecimal("-33.64"), "Generi alimentari e supermercato");
+        when(parser.parse(eq("estratto.pdf"), any())).thenReturn(List.of(rt));
+        when(transactionRepo.existsByTxDateAndDescriptionAndAmount(rt.date(), rt.description(), rt.amount())).thenReturn(false);
+
+        service.importStatement("estratto.pdf", new ByteArrayInputStream(new byte[0]));
+
+        verify(transactionRepo).save(argThat(tx ->
+                tx.getCategory().equals("Generi alimentari e supermercato") && tx.getType().equals(TransactionCategorizer.VARIABLE)));
+    }
+
+    @Test
     @DisplayName("elimina più movimenti selezionati in un colpo solo, ignorando id inesistenti")
     void deletesSelectedTransactions() {
         when(transactionRepo.existsById("a")).thenReturn(true);
@@ -127,6 +141,20 @@ class FinanceServiceTest {
         assertThat(result.category()).isEqualTo("Stipendio");
         assertThat(result.type()).isEqualTo(TransactionCategorizer.INCOME);
         assertThat(result.amount()).isEqualTo(200.00);
+    }
+
+    @Test
+    @DisplayName("il menu delle categorie include anche quelle realmente in uso sui movimenti, non solo quelle statiche note")
+    void transactionCategoriesIncludeActuallyUsedOnes() {
+        when(transactionRepo.findDistinctCategoriesByType(TransactionCategorizer.VARIABLE))
+                .thenReturn(List.of("Generi alimentari e supermercato", "Altre uscite"));
+        when(transactionRepo.findDistinctCategoriesByType(TransactionCategorizer.INCOME))
+                .thenReturn(List.of("Stipendi e pensioni"));
+
+        var categories = service.getTransactionCategories();
+
+        assertThat(categories.expense()).contains("Alimentari", "Generi alimentari e supermercato", "Altre uscite");
+        assertThat(categories.income()).contains("Stipendio", "Stipendi e pensioni");
     }
 
     @Test

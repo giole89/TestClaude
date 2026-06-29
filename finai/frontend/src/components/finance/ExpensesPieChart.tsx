@@ -41,26 +41,70 @@ export function ExpensesPieChart() {
           Nessuna spesa registrata per questo mese.
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={280}>
-          <PieChart>
-            <Pie
-              data={currentMonthExpenses.byCategory}
-              dataKey="amount"
-              nameKey="category"
-              cx="50%"
-              cy="50%"
-              outerRadius={100}
-              label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
-              labelLine={false}
-            >
-              {currentMonthExpenses.byCategory.map((_, idx) => (
-                <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip content={<CategoryTooltip />} />
-            <Legend wrapperStyle={{ fontFamily: 'Syne', fontSize: 11 }} />
-          </PieChart>
-        </ResponsiveContainer>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ minWidth: 280, flex: '1 1 320px' }}>
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={currentMonthExpenses.byCategory}
+                  dataKey="amount"
+                  nameKey="category"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
+                >
+                  {currentMonthExpenses.byCategory.map((_, idx) => (
+                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CategoryTooltip />} />
+                <Legend wrapperStyle={{ fontFamily: 'Syne', fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ flex: '1 1 280px', minWidth: 240 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'JetBrains Mono', fontSize: 11 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--muted2)', fontFamily: 'Syne', fontSize: 10 }}></th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--muted2)', fontFamily: 'Syne', fontSize: 10 }}>Categoria</th>
+                  <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--muted2)', fontFamily: 'Syne', fontSize: 10 }}>Importo</th>
+                  <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--muted2)', fontFamily: 'Syne', fontSize: 10 }}>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentMonthExpenses.byCategory.map((c, idx) => (
+                  <tr key={c.category} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '4px 8px' }}>
+                      <span style={{
+                        display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                        background: COLORS[idx % COLORS.length],
+                      }} />
+                    </td>
+                    <td style={{ padding: '4px 8px', color: 'var(--text)' }}>{c.category}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text)' }}>{formatNumber(c.amount, 2)} €</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--muted)' }}>
+                      {currentMonthExpenses.total > 0 ? ((c.amount / currentMonthExpenses.total) * 100).toFixed(1) : '0.0'}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td />
+                  <td style={{ padding: '6px 8px', color: 'var(--text)', fontFamily: 'Syne', fontWeight: 700, fontSize: 11 }}>Totale</td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text)', fontFamily: 'Syne', fontWeight: 700, fontSize: 11 }}>
+                    {formatNumber(currentMonthExpenses.total, 2)} €
+                  </td>
+                  <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--muted)', fontFamily: 'Syne', fontSize: 11 }}>100%</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   )

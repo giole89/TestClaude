@@ -291,7 +291,9 @@ public class StatementParserService {
             BigDecimal amount = parseAmountText(m.group(5));
             if (date == null || amount == null) continue;
             String description = m.group(2).trim();
-            results.add(new RawTransaction(date, description.isEmpty() ? "Movimento" : description, amount));
+            String sourceCategory = m.group(4).trim();
+            results.add(new RawTransaction(date, description.isEmpty() ? "Movimento" : description, amount,
+                    sourceCategory.isEmpty() ? null : sourceCategory));
         }
         return results;
     }

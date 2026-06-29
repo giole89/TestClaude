@@ -113,6 +113,22 @@ public class TransactionCategorizer {
         return new Classification(isIncome ? "Altra entrata" : "Altro", isIncome ? INCOME : VARIABLE);
     }
 
+    /** Lunghezza massima della colonna "category" su {@code bank_transactions}. */
+    private static final int MAX_CATEGORY_LENGTH = 50;
+
+    /**
+     * Quando l'estratto conto fornisce già una categoria (es. colonna "CATEGORIA" di alcuni
+     * estratti conto bancari come Intesa Sanpaolo), usarla direttamente è più preciso del
+     * riconoscimento per parole chiave nella descrizione: la banca conosce il merchant/MCC
+     * dietro al movimento, noi vediamo solo il testo descrittivo che ne deriva.
+     */
+    public Classification classifyWithSourceCategory(String sourceCategory, BigDecimal amount) {
+        boolean isIncome = amount != null && amount.signum() > 0;
+        String category = sourceCategory.trim().replaceAll("\\s+", " ");
+        if (category.length() > MAX_CATEGORY_LENGTH) category = category.substring(0, MAX_CATEGORY_LENGTH);
+        return new Classification(category, isIncome ? INCOME : VARIABLE);
+    }
+
     /** Tutte le categorie note per il tipo indicato (specifiche + generiche + fallback), per popolare un menu a tendina. */
     public List<String> knownCategories(String type) {
         Set<String> names = new LinkedHashSet<>();

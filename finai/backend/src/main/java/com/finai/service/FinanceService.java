@@ -78,7 +78,9 @@ public class FinanceService {
                 continue;
             }
 
-            TransactionCategorizer.Classification classification = categorizer.classify(rt.description(), rt.amount());
+            TransactionCategorizer.Classification classification = (rt.sourceCategory() != null && !rt.sourceCategory().isBlank())
+                    ? categorizer.classifyWithSourceCategory(rt.sourceCategory(), rt.amount())
+                    : categorizer.classify(rt.description(), rt.amount());
 
             BankTransaction tx = new BankTransaction();
             tx.setId(UUID.randomUUID().toString());
@@ -101,11 +103,22 @@ public class FinanceService {
         return transactionRepo.findAllByOrderByTxDateDesc().stream().map(TransactionDto::from).toList();
     }
 
-    /** Categorie note per il menu a tendina usato nella correzione manuale dei movimenti. */
+    /**
+     * Categorie note per il menu a tendina usato nella correzione manuale dei movimenti: unisce
+     * le categorie statiche del categorizzatore con quelle effettivamente in uso sui movimenti
+     * importati (es. categorie fornite direttamente dalla banca nell'estratto conto), così il
+     * menu riflette anche etichette non previste a priori.
+     */
     public TransactionCategoriesDto getTransactionCategories() {
         return new TransactionCategoriesDto(
-                categorizer.knownCategories(TransactionCategorizer.INCOME),
-                categorizer.knownCategories(TransactionCategorizer.VARIABLE));
+                mergeCategories(TransactionCategorizer.INCOME),
+                mergeCategories(TransactionCategorizer.VARIABLE));
+    }
+
+    private List<String> mergeCategories(String type) {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>(categorizer.knownCategories(type));
+        names.addAll(transactionRepo.findDistinctCategoriesByType(type));
+        return List.copyOf(names);
     }
 
     @Transactional

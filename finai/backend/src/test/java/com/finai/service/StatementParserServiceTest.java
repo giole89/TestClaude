@@ -124,10 +124,13 @@ class StatementParserServiceTest {
         assertThat(result).hasSize(3);
         assertThat(result.get(0).description()).isEqualTo("Trasferimento Denaro BANCOMAT Pay");
         assertThat(result.get(0).amount()).isEqualByComparingTo(new BigDecimal("-10.00"));
+        assertThat(result.get(0).sourceCategory()).isEqualTo("Addebiti vari");
         assertThat(result.get(1).description()).isEqualTo("Stipendio O Pensione");
         assertThat(result.get(1).amount()).isEqualByComparingTo(new BigDecimal("2935.00"));
+        assertThat(result.get(1).sourceCategory()).isEqualTo("Stipendi e pensioni");
         assertThat(result.get(2).description()).isEqualTo("Bonifico istantaneo disposto da BARONI SILVIA");
         assertThat(result.get(2).amount()).isEqualByComparingTo(new BigDecimal("20.00"));
+        assertThat(result.get(2).sourceCategory()).isEqualTo("Bonifici ricevuti");
     }
 
     private byte[] buildPdf(List<String> lines) throws Exception {

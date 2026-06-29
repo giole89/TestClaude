@@ -64,6 +64,15 @@ class TransactionCategorizerTest {
     }
 
     @Test
+    @DisplayName("quando l'estratto conto fornisce già una categoria la usa direttamente, senza riprovare il riconoscimento per parole chiave")
+    void usesSourceCategoryDirectlyWhenProvided() {
+        assertThat(categorizer.classifyWithSourceCategory("Generi alimentari e supermercato", new BigDecimal("-33.64")))
+                .isEqualTo(new TransactionCategorizer.Classification("Generi alimentari e supermercato", TransactionCategorizer.VARIABLE));
+        assertThat(categorizer.classifyWithSourceCategory("Stipendi e pensioni", new BigDecimal("2935.00")))
+                .isEqualTo(new TransactionCategorizer.Classification("Stipendi e pensioni", TransactionCategorizer.INCOME));
+    }
+
+    @Test
     @DisplayName("elenca le categorie note per tipo, incluso il fallback, per popolare un menu a tendina")
     void listsKnownCategoriesByType() {
         assertThat(categorizer.knownCategories(TransactionCategorizer.INCOME))
