@@ -47,8 +47,8 @@ export function BudgetSummary() {
       </div>
       <div style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
         {budget.hasEnoughData
-          ? `Stima basata sulla media degli ultimi ${budget.monthsOfHistory} mesi importati.`
-          : 'Importa almeno un estratto conto per stime più precise su entrate e spese variabili.'}
+          ? `Stima basata sulla media degli ultimi ${budget.monthsOfHistory} ${budget.monthsOfHistory === 1 ? 'mese completo' : 'mesi completi'} (il mese in corso, non ancora concluso, non è incluso nella media: per la spesa reale fin qui vedi il grafico qui sotto).`
+          : 'Servono dati di almeno un mese passato completo per stimare in modo affidabile entrate e spese variabili: importa l\'estratto conto del mese precedente.'}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>

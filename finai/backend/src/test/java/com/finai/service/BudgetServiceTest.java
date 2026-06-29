@@ -57,11 +57,11 @@ class BudgetServiceTest {
     @Test
     @DisplayName("calcola la ripartizione delle entrate per categoria, non solo il totale")
     void computesIncomeByCategory() {
-        LocalDate thisMonth = LocalDate.now().withDayOfMonth(1);
+        LocalDate lastMonth = LocalDate.now().minusMonths(1).withDayOfMonth(1);
         when(transactionRepo.findAllByOrderByTxDateDesc()).thenReturn(List.of(
-                tx(thisMonth, "Stipendio", TransactionCategorizer.INCOME, "1500.00"),
-                tx(thisMonth, "Rimborso", TransactionCategorizer.INCOME, "100.00"),
-                tx(thisMonth, "Alimentari", TransactionCategorizer.VARIABLE, "-50.00")
+                tx(lastMonth, "Stipendio", TransactionCategorizer.INCOME, "1500.00"),
+                tx(lastMonth, "Rimborso", TransactionCategorizer.INCOME, "100.00"),
+                tx(lastMonth, "Alimentari", TransactionCategorizer.VARIABLE, "-50.00")
         ));
 
         BudgetDto budget = service.computeNextMonthBudget();
@@ -71,6 +71,27 @@ class BudgetServiceTest {
         assertThat(budget.incomeByCategory()).filteredOn(c -> c.category().equals("Stipendio"))
                 .first().extracting(CategoryAmountDto::amount).isEqualTo(1500.00);
         assertThat(budget.estimatedIncome()).isEqualTo(1600.00);
+    }
+
+    @Test
+    @DisplayName("esclude il mese in corso (ancora incompleto) dalla media storica, per non sottostimare la stima")
+    void excludesCurrentInProgressMonthFromHistoricalAverage() {
+        YearMonth currentMonth = YearMonth.now();
+        LocalDate inCurrentMonth = currentMonth.atDay(1);
+        LocalDate lastMonth = currentMonth.minusMonths(1).atDay(1);
+        when(transactionRepo.findAllByOrderByTxDateDesc()).thenReturn(List.of(
+                // Mese in corso: tante spese già registrate, ma il mese non è ancora finito.
+                tx(inCurrentMonth, "Alimentari", TransactionCategorizer.VARIABLE, "-2000.00"),
+                // Unico mese passato completo: la stima deve basarsi solo su questo.
+                tx(lastMonth, "Alimentari", TransactionCategorizer.VARIABLE, "-400.00"),
+                tx(lastMonth, "Stipendio", TransactionCategorizer.INCOME, "1500.00")
+        ));
+
+        BudgetDto budget = service.computeNextMonthBudget();
+
+        assertThat(budget.variableCostsEstimate()).isEqualTo(400.00);
+        assertThat(budget.estimatedIncome()).isEqualTo(1500.00);
+        assertThat(budget.monthsOfHistory()).isEqualTo(1);
     }
 
     @Test

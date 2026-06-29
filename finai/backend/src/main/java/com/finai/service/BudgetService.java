@@ -42,10 +42,15 @@ public class BudgetService {
 
     public BudgetDto computeNextMonthBudget() {
         List<BankTransaction> all = transactions.findAllByOrderByTxDateDesc();
+        YearMonth currentMonth = YearMonth.now();
 
+        // Il mese in corso non è ancora concluso: includerlo nella media storica la farebbe
+        // risultare artificialmente più bassa (somma di un mese parziale divisa come se fosse
+        // completo). La stima del prossimo mese si basa quindi solo sui mesi passati completi.
         List<YearMonth> recentMonths = all.stream()
                 .map(t -> YearMonth.from(t.getTxDate()))
                 .distinct()
+                .filter(ym -> !ym.equals(currentMonth))
                 .sorted(Comparator.reverseOrder())
                 .limit(LOOKBACK_MONTHS)
                 .toList();
