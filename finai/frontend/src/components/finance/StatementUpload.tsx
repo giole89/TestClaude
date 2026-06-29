@@ -8,7 +8,7 @@ function errorMessage(e: any): string {
 export function StatementUpload() {
   const { uploadStatement, isUploading } = useFinance()
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null)
+  const [result, setResult] = useState<{ imported: number; skipped: number; duplicates: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -18,7 +18,7 @@ export function StatementUpload() {
     setResult(null)
     try {
       const res = await uploadStatement(file)
-      setResult({ imported: res.imported, skipped: res.skipped })
+      setResult({ imported: res.imported, skipped: res.skipped, duplicates: res.duplicates })
     } catch (e: any) {
       setError(errorMessage(e))
     }
@@ -71,6 +71,15 @@ export function StatementUpload() {
           padding: '8px 14px', color: 'var(--acc)', fontFamily: 'Syne', fontSize: 12,
         }}>
           ✓ Importati {result.imported} movimenti{result.skipped > 0 ? ` (${result.skipped} righe non riconosciute scartate)` : ''}.
+        </div>
+      )}
+
+      {result && result.duplicates > 0 && (
+        <div style={{
+          marginTop: 8, background: 'rgba(234,179,8,0.1)', border: '1px solid #eab308', borderRadius: 8,
+          padding: '8px 14px', color: '#eab308', fontFamily: 'Syne', fontSize: 12,
+        }}>
+          ⚠ {result.duplicates} movimenti risultavano già presenti (stessa data, descrizione e importo) e non sono stati importati di nuovo: probabilmente questo estratto conto, o una sua parte, era già stato caricato.
         </div>
       )}
     </div>

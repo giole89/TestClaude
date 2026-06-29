@@ -66,9 +66,18 @@ public class FinanceService {
         }
 
         int skipped = 0;
+        int duplicates = 0;
         List<BankTransaction> saved = new java.util.ArrayList<>();
         for (RawTransaction rt : raw) {
             if (rt.amount() == null || rt.date() == null) { skipped++; continue; }
+
+            // Stesso estratto conto importato più di una volta (o file diversi con movimenti
+            // coincidenti): non duplicare il movimento, segnala soltanto quanti ne sono stati trovati.
+            if (transactionRepo.existsByTxDateAndDescriptionAndAmount(rt.date(), rt.description(), rt.amount())) {
+                duplicates++;
+                continue;
+            }
+
             TransactionCategorizer.Classification classification = categorizer.classify(rt.description(), rt.amount());
 
             BankTransaction tx = new BankTransaction();
@@ -82,9 +91,10 @@ public class FinanceService {
             saved.add(transactionRepo.save(tx));
         }
 
-        log.info("Import estratto conto {}: {} movimenti importati, {} scartati", filename, saved.size(), skipped);
+        log.info("Import estratto conto {}: {} movimenti importati, {} scartati, {} duplicati ignorati",
+                filename, saved.size(), skipped, duplicates);
         List<TransactionDto> dtos = saved.stream().map(TransactionDto::from).toList();
-        return new StatementUploadResultDto(saved.size(), skipped, dtos);
+        return new StatementUploadResultDto(saved.size(), skipped, duplicates, dtos);
     }
 
     public List<TransactionDto> getTransactions() {
@@ -95,6 +105,23 @@ public class FinanceService {
     public void deleteTransaction(String id) {
         if (!transactionRepo.existsById(id)) throw new FinaiException("Movimento non trovato", 404);
         transactionRepo.deleteById(id);
+    }
+
+    /** Elimina più movimenti in un colpo solo (es. selezione multipla dalla lista importati). */
+    @Transactional
+    public int deleteTransactions(List<String> ids) {
+        if (ids == null || ids.isEmpty()) return 0;
+        List<String> existing = ids.stream().distinct().filter(transactionRepo::existsById).toList();
+        transactionRepo.deleteAllById(existing);
+        return existing.size();
+    }
+
+    /** Elimina tutti i movimenti importati (reset rapido prima di un nuovo import). */
+    @Transactional
+    public int deleteAllTransactions() {
+        long count = transactionRepo.count();
+        transactionRepo.deleteAll();
+        return (int) count;
     }
 
     // ─────────────────────────────────── Spese fisse ──────────────────────────

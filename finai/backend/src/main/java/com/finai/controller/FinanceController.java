@@ -55,6 +55,18 @@ public class FinanceController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/transactions")
+    @Operation(summary = "Elimina più movimenti importati in un colpo solo (selezione multipla)")
+    public ResponseEntity<DeleteCountDto> deleteTransactions(@RequestBody List<String> ids) {
+        return ResponseEntity.ok(new DeleteCountDto(service.deleteTransactions(ids)));
+    }
+
+    @DeleteMapping("/transactions/all")
+    @Operation(summary = "Elimina tutti i movimenti importati")
+    public ResponseEntity<DeleteCountDto> deleteAllTransactions() {
+        return ResponseEntity.ok(new DeleteCountDto(service.deleteAllTransactions()));
+    }
+
     // ─────────────────────────────────── Spese fisse ──────────────────────────
 
     @GetMapping("/fixed-expenses")

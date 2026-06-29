@@ -4,6 +4,7 @@ import com.finai.domain.entity.BankTransaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -15,4 +16,6 @@ public interface BankTransactionRepository extends JpaRepository<BankTransaction
     List<BankTransaction> findByTxDateGreaterThanEqualOrderByTxDateDesc(LocalDate from);
 
     List<BankTransaction> findByTxDateBetween(LocalDate from, LocalDate to);
+
+    boolean existsByTxDateAndDescriptionAndAmount(LocalDate txDate, String description, BigDecimal amount);
 }

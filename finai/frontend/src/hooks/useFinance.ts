@@ -15,6 +15,7 @@ export interface Transaction {
 export interface StatementUploadResult {
   imported: number
   skipped: number
+  duplicates: number
   transactions: Transaction[]
 }
 
@@ -158,6 +159,16 @@ export function useFinance() {
     onSuccess: invalidateMoneyFlows,
   })
 
+  const deleteTransactions = useMutation({
+    mutationFn: (ids: string[]) => axios.delete(`${API_BASE}/api/finance/transactions`, { data: ids }),
+    onSuccess: invalidateMoneyFlows,
+  })
+
+  const deleteAllTransactions = useMutation({
+    mutationFn: () => axios.delete(`${API_BASE}/api/finance/transactions/all`),
+    onSuccess: invalidateMoneyFlows,
+  })
+
   const invalidateFixedExpenses = () => {
     qc.invalidateQueries({ queryKey: FIXED_EXPENSES_KEY })
     qc.invalidateQueries({ queryKey: BUDGET_KEY })
@@ -202,6 +213,10 @@ export function useFinance() {
     uploadStatement: uploadStatement.mutateAsync,
     isUploading: uploadStatement.isPending,
     deleteTransaction: deleteTransaction.mutateAsync,
+    deleteTransactions: deleteTransactions.mutateAsync,
+    isDeletingTransactions: deleteTransactions.isPending,
+    deleteAllTransactions: deleteAllTransactions.mutateAsync,
+    isDeletingAllTransactions: deleteAllTransactions.isPending,
 
     createFixedExpense: createFixedExpense.mutateAsync,
     isCreatingFixedExpense: createFixedExpense.isPending,
