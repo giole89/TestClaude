@@ -12,6 +12,11 @@ export interface Transaction {
   sourceFile: string | null
 }
 
+export interface TransactionUpdateInput {
+  category: string
+  type: 'INCOME' | 'VARIABLE_EXPENSE'
+}
+
 export interface StatementUploadResult {
   imported: number
   skipped: number
@@ -174,6 +179,12 @@ export function useFinance() {
     onSuccess: invalidateMoneyFlows,
   })
 
+  const updateTransaction = useMutation({
+    mutationFn: (args: { id: string; req: TransactionUpdateInput }) =>
+      axios.put(`${API_BASE}/api/finance/transactions/${args.id}`, args.req).then(r => r.data as Transaction),
+    onSuccess: invalidateMoneyFlows,
+  })
+
   const deleteTransactions = useMutation({
     mutationFn: (ids: string[]) => axios.delete(`${API_BASE}/api/finance/transactions`, { data: ids }),
     onSuccess: invalidateMoneyFlows,
@@ -230,6 +241,8 @@ export function useFinance() {
     uploadStatement: uploadStatement.mutateAsync,
     isUploading: uploadStatement.isPending,
     deleteTransaction: deleteTransaction.mutateAsync,
+    updateTransaction: updateTransaction.mutateAsync,
+    isUpdatingTransaction: updateTransaction.isPending,
     deleteTransactions: deleteTransactions.mutateAsync,
     isDeletingTransactions: deleteTransactions.isPending,
     deleteAllTransactions: deleteAllTransactions.mutateAsync,

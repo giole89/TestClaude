@@ -57,8 +57,9 @@ public class StatementParserService {
     private static final Pattern PDF_AMOUNT_ONLY = Pattern.compile("^[+-]?(?:\\d{1,3}(?:[.,]\\d{3})*|\\d+)[.,]\\d{2}\\s*(?:EUR|€)?$");
 
     private static final Set<String> INCOME_KEYWORDS = Set.of(
-            "stipendio", "accredito", "bonifico in entrata", "bonifico a vostro favore",
-            "versamento", "rimborso", "pensione", "salary", "incasso", "entrata", "entrate"
+            "stipendio", "accredito", "bonifico in entrata", "bonifico a vostro favore", "bonifico ricevuto",
+            "versamento", "rimborso", "pensione", "salary", "incasso", "entrata", "entrate",
+            "giroconto a favore", "interess", "dividend", "cedola", "storno"
     );
 
     private static final Set<String> OPENING_BALANCE_KEYWORDS = Set.of(

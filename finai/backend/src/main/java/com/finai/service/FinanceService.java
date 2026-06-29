@@ -107,6 +107,19 @@ public class FinanceService {
         transactionRepo.deleteById(id);
     }
 
+    /** Corregge manualmente categoria/tipo di un movimento non riconosciuto bene dalla categorizzazione automatica. */
+    @Transactional
+    public TransactionDto updateTransaction(String id, TransactionUpdateRequest req) {
+        BankTransaction tx = transactionRepo.findById(id)
+                .orElseThrow(() -> new FinaiException("Movimento non trovato", 404));
+        tx.setCategory(req.category());
+        if (!req.type().equals(tx.getType())) {
+            tx.setAmount(req.type().equals(TransactionCategorizer.INCOME) ? tx.getAmount().abs() : tx.getAmount().abs().negate());
+        }
+        tx.setType(req.type());
+        return TransactionDto.from(transactionRepo.save(tx));
+    }
+
     /** Elimina più movimenti in un colpo solo (es. selezione multipla dalla lista importati). */
     @Transactional
     public int deleteTransactions(List<String> ids) {

@@ -3,6 +3,9 @@ package com.finai.service;
 import com.finai.domain.entity.BankTransaction;
 import com.finai.dto.finance.RawTransaction;
 import com.finai.dto.finance.StatementUploadResultDto;
+import com.finai.dto.finance.TransactionDto;
+import com.finai.dto.finance.TransactionUpdateRequest;
+import com.finai.exception.FinaiException;
 import com.finai.repository.BankTransactionRepository;
 import com.finai.repository.FixedExpenseRepository;
 import com.finai.repository.InvestorProfileRepository;
@@ -17,8 +20,10 @@ import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -103,5 +108,33 @@ class FinanceServiceTest {
 
         assertThat(deleted).isEqualTo(5);
         verify(transactionRepo).deleteAll();
+    }
+
+    @Test
+    @DisplayName("corregge categoria e tipo di un movimento, riallineando il segno dell'importo al nuovo tipo")
+    void updatesTransactionCategoryAndType() {
+        BankTransaction tx = new BankTransaction();
+        tx.setId("a");
+        tx.setTxDate(LocalDate.of(2024, 3, 1));
+        tx.setDescription("Bonifico generico");
+        tx.setAmount(new BigDecimal("-200.00"));
+        tx.setCategory("Altro");
+        tx.setType(TransactionCategorizer.VARIABLE);
+        when(transactionRepo.findById("a")).thenReturn(Optional.of(tx));
+
+        TransactionDto result = service.updateTransaction("a", new TransactionUpdateRequest("Stipendio", TransactionCategorizer.INCOME));
+
+        assertThat(result.category()).isEqualTo("Stipendio");
+        assertThat(result.type()).isEqualTo(TransactionCategorizer.INCOME);
+        assertThat(result.amount()).isEqualTo(200.00);
+    }
+
+    @Test
+    @DisplayName("segnala errore se si tenta di correggere un movimento inesistente")
+    void failsToUpdateMissingTransaction() {
+        when(transactionRepo.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateTransaction("missing", new TransactionUpdateRequest("Altro", TransactionCategorizer.VARIABLE)))
+                .isInstanceOf(FinaiException.class);
     }
 }

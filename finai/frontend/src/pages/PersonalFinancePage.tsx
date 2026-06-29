@@ -9,11 +9,61 @@ import { formatNumber, formatDate, colorForChange } from '@/lib/formatters'
 
 type TypeFilter = 'ALL' | 'INCOME' | 'VARIABLE_EXPENSE'
 
+function TransactionEditRow({ transaction, onCancel }: { transaction: import('@/hooks/useFinance').Transaction; onCancel: () => void }) {
+  const { updateTransaction, isUpdatingTransaction } = useFinance()
+  const [category, setCategory] = useState(transaction.category)
+  const [type, setType] = useState<'INCOME' | 'VARIABLE_EXPENSE'>(transaction.type)
+
+  const handleSave = async () => {
+    if (!category.trim()) return
+    await updateTransaction({ id: transaction.id, req: { category: category.trim(), type } })
+    onCancel()
+  }
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+      padding: '8px 16px', borderBottom: '1px solid var(--border)', background: 'var(--s3)',
+    }}>
+      <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--muted2)', minWidth: 90 }}>{formatDate(transaction.date)}</div>
+      <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: 'var(--text)', flex: 1, minWidth: 140 }}>{transaction.description}</div>
+      <input
+        value={category}
+        onChange={e => setCategory(e.target.value)}
+        placeholder="Categoria"
+        style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontFamily: 'Syne', fontSize: 11, color: 'var(--text)', width: 130 }}
+      />
+      <select
+        value={type}
+        onChange={e => setType(e.target.value as 'INCOME' | 'VARIABLE_EXPENSE')}
+        style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', fontFamily: 'Syne', fontSize: 11, color: 'var(--text)' }}
+      >
+        <option value="INCOME">Entrata</option>
+        <option value="VARIABLE_EXPENSE">Uscita</option>
+      </select>
+      <button
+        onClick={handleSave}
+        disabled={isUpdatingTransaction}
+        style={{ background: 'var(--acc)', border: 'none', borderRadius: 6, padding: '4px 10px', fontFamily: 'Syne', fontSize: 11, cursor: 'pointer', color: '#000' }}
+      >
+        Salva
+      </button>
+      <button
+        onClick={onCancel}
+        style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--muted2)', borderRadius: 6, padding: '4px 10px', fontFamily: 'Syne', fontSize: 11, cursor: 'pointer' }}
+      >
+        Annulla
+      </button>
+    </div>
+  )
+}
+
 function TransactionsHistory() {
   const { transactions, deleteTransaction, deleteTransactions, deleteAllTransactions, isDeletingTransactions, isDeletingAllTransactions } = useFinance()
   const [show, setShow] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const filtered = typeFilter === 'ALL' ? transactions : transactions.filter(t => t.type === typeFilter)
 
@@ -97,7 +147,7 @@ function TransactionsHistory() {
           ) : (
             <>
               <div style={{
-                display: 'grid', gridTemplateColumns: '24px 90px 1fr 120px 90px 30px', gap: 8, alignItems: 'center',
+                display: 'grid', gridTemplateColumns: '24px 90px 1fr 120px 90px 24px 30px', gap: 8, alignItems: 'center',
                 padding: '6px 16px', borderBottom: '1px solid var(--border)', fontFamily: 'Syne', fontSize: 10, color: 'var(--muted2)',
               }}>
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} />
@@ -106,24 +156,36 @@ function TransactionsHistory() {
                 <div />
                 <div />
                 <div />
+                <div />
               </div>
               {filtered.map(t => (
-                <div key={t.id} style={{
-                  display: 'grid', gridTemplateColumns: '24px 90px 1fr 120px 90px 30px', gap: 8, alignItems: 'center',
-                  padding: '8px 16px', borderBottom: '1px solid var(--border)', fontFamily: 'JetBrains Mono', fontSize: 11,
-                }}>
-                  <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
-                  <div style={{ color: 'var(--muted2)' }}>{formatDate(t.date)}</div>
-                  <div style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
-                  <div style={{ color: 'var(--muted)' }}>{t.category}</div>
-                  <div style={{ textAlign: 'right', color: colorForChange(t.amount) }}>{formatNumber(t.amount, 2)} €</div>
-                  <button
-                    onClick={() => deleteTransaction(t.id)}
-                    style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11 }}
-                  >
-                    ✕
-                  </button>
-                </div>
+                editingId === t.id ? (
+                  <TransactionEditRow key={t.id} transaction={t} onCancel={() => setEditingId(null)} />
+                ) : (
+                  <div key={t.id} style={{
+                    display: 'grid', gridTemplateColumns: '24px 90px 1fr 120px 90px 24px 30px', gap: 8, alignItems: 'center',
+                    padding: '8px 16px', borderBottom: '1px solid var(--border)', fontFamily: 'JetBrains Mono', fontSize: 11,
+                  }}>
+                    <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
+                    <div style={{ color: 'var(--muted2)' }}>{formatDate(t.date)}</div>
+                    <div style={{ color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</div>
+                    <div style={{ color: 'var(--muted)' }}>{t.category}</div>
+                    <div style={{ textAlign: 'right', color: colorForChange(t.amount) }}>{formatNumber(t.amount, 2)} €</div>
+                    <button
+                      onClick={() => setEditingId(t.id)}
+                      title="Correggi categoria/tipo"
+                      style={{ background: 'none', border: 'none', color: 'var(--muted2)', cursor: 'pointer', fontSize: 12 }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={() => deleteTransaction(t.id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )
               ))}
             </>
           )}

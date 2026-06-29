@@ -48,6 +48,12 @@ public class FinanceController {
         return ResponseEntity.ok(service.getTransactions());
     }
 
+    @PutMapping("/transactions/{id}")
+    @Operation(summary = "Corregge manualmente categoria/tipo di un movimento (es. entrata classificata come uscita, o categoria 'Altro')")
+    public ResponseEntity<TransactionDto> updateTransaction(@PathVariable String id, @Valid @RequestBody TransactionUpdateRequest req) {
+        return ResponseEntity.ok(service.updateTransaction(id, req));
+    }
+
     @DeleteMapping("/transactions/{id}")
     @Operation(summary = "Elimina un movimento importato (es. duplicato o errore di parsing)")
     public ResponseEntity<Void> deleteTransaction(@PathVariable String id) {
