@@ -104,6 +104,32 @@ class StatementParserServiceTest {
         assertThat(result.get(2).amount()).isEqualByComparingTo(new BigDecimal("-650.00"));
     }
 
+    @Test
+    @DisplayName("riconosce un estratto conto \"a 5 colonne\" (es. Intesa Sanpaolo) anche quando descrizione e categoria vanno a capo su più righe")
+    void parsesWideTableLayoutWithWrappedDescriptions() throws Exception {
+        byte[] pdf = buildPdf(List.of(
+                "DATA CONTABILE OPERAZIONE CONTABILIZZATO CATEGORIA IMPORTO",
+                "26.06.2026 Trasferimento Denaro",
+                "BANCOMAT Pay NO Addebiti vari € -10,00",
+                "26.06.2026 Stipendio O Pensione SI Stipendi e",
+                "pensioni € 2.935,00",
+                "21.06.2026",
+                "Bonifico istantaneo disposto da",
+                "BARONI SILVIA",
+                "SI Bonifici ricevuti € 20,00"
+        ));
+
+        List<RawTransaction> result = parser.parsePdf(new ByteArrayInputStream(pdf));
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).description()).isEqualTo("Trasferimento Denaro BANCOMAT Pay");
+        assertThat(result.get(0).amount()).isEqualByComparingTo(new BigDecimal("-10.00"));
+        assertThat(result.get(1).description()).isEqualTo("Stipendio O Pensione");
+        assertThat(result.get(1).amount()).isEqualByComparingTo(new BigDecimal("2935.00"));
+        assertThat(result.get(2).description()).isEqualTo("Bonifico istantaneo disposto da BARONI SILVIA");
+        assertThat(result.get(2).amount()).isEqualByComparingTo(new BigDecimal("20.00"));
+    }
+
     private byte[] buildPdf(List<String> lines) throws Exception {
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage();

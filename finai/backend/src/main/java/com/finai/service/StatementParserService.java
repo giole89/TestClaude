@@ -247,6 +247,14 @@ public class StatementParserService {
     List<RawTransaction> parsePdf(InputStream input) throws IOException {
         try (PDDocument doc = Loader.loadPDF(input.readAllBytes())) {
             String text = new PDFTextStripper().getText(doc);
+
+            // Estratti conto "a 5 colonne" (es. Intesa Sanpaolo: DATA CONTABILE / OPERAZIONE /
+            // CONTABILIZZATO / CATEGORIA / IMPORTO) dove descrizione e categoria vanno a capo
+            // su più righe in modo imprevedibile: non si possono trattare le righe di testo
+            // singolarmente, va analizzato l'intero blocco con un'ancora su SI/NO + importo.
+            List<RawTransaction> wideTable = parsePdfWideTable(text);
+            if (!wideTable.isEmpty()) return wideTable;
+
             List<String> lines = Arrays.stream(text.split("\\r?\\n"))
                     .map(String::trim).filter(l -> !l.isEmpty()).toList();
 
@@ -257,6 +265,35 @@ public class StatementParserService {
             // importo / saldo) su una riga separata invece che sulla stessa riga.
             return parsePdfTableLayout(lines);
         }
+    }
+
+    private static final Pattern WIDE_TABLE_HEADER = Pattern.compile("(?is)contabilizzato.*?importo");
+    private static final String  AMOUNT_FRAGMENT = "[+-]?(?:\\d{1,3}(?:[.,]\\d{3})*|\\d+)[.,]\\d{2}";
+    private static final Pattern WIDE_TABLE_TX = Pattern.compile(
+            "(\\d{1,2}[./\\-]\\d{1,2}[./\\-]\\d{2,4})\\s+(.{1,250}?)\\s+(SI|NO)\\s+(.{1,200}?)\\s+(?:EUR|[€?])?\\s*(" + AMOUNT_FRAGMENT + ")");
+
+    /**
+     * Estratti conto "a 5 colonne" con marcatore "CONTABILIZZATO" (SI/NO) tra descrizione e
+     * categoria: il testo estratto da PDFBox non rispetta i confini di cella, quindi si
+     * normalizza l'intero blocco dopo l'intestazione in un'unica stringa e si individuano i
+     * movimenti tramite un'ancora su data ... SI|NO ... importo, indipendentemente da come
+     * descrizione e categoria sono andate a capo nel PDF originale.
+     */
+    private List<RawTransaction> parsePdfWideTable(String text) {
+        Matcher header = WIDE_TABLE_HEADER.matcher(text);
+        if (!header.find()) return List.of();
+
+        String joined = text.substring(header.end()).replaceAll("\\s+", " ").trim();
+        Matcher m = WIDE_TABLE_TX.matcher(joined);
+        List<RawTransaction> results = new ArrayList<>();
+        while (m.find()) {
+            LocalDate date = parseDateText(m.group(1));
+            BigDecimal amount = parseAmountText(m.group(5));
+            if (date == null || amount == null) continue;
+            String description = m.group(2).trim();
+            results.add(new RawTransaction(date, description.isEmpty() ? "Movimento" : description, amount));
+        }
+        return results;
     }
 
     private static final Pattern DATE_PREFIX = Pattern.compile(
