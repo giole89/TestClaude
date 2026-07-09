@@ -47,6 +47,8 @@ import java.util.List;
  * @param shortfall              fabbisogno residuo non coperto dal capitale disponibile complessivo (0 se basta)
  * @param pensionFund            idoneità e stima dell'anticipazione del fondo pensione; null se non dichiarati anni di iscrizione
  * @param budgetAdvice           elenco ordinato di fonti a cui attingere per coprire il fabbisogno residuo
+ * @param maxLoanAdvice          quanto mutuo si potrebbe ragionevolmente richiedere, calcolato al contrario da reddito, altri debiti e vincolo di LTV
+ * @param durationComparison     confronto tra rata/interessi/sostenibilità dello stesso mutuo simulato su durate diverse (10/15/20/25/30 anni)
  */
 public record MortgageSimulationDto(
         Double monthlyPayment,
@@ -89,5 +91,7 @@ public record MortgageSimulationDto(
         Double shortfall,
         PensionFundAdviceDto pensionFund,
         List<BudgetAdviceDto> budgetAdvice,
+        MaxLoanAdviceDto maxLoanAdvice,
+        List<DurationOptionDto> durationComparison,
         List<AmortizationYearDto> schedule
 ) {}

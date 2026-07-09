@@ -133,6 +133,11 @@ public class MortgageService {
         PensionFundAdviceDto pensionFund = pensionFundAdvice(req.pensionFundYears(), req.pensionFundBalance(), purchaseType);
         List<BudgetAdviceDto> budgetAdvice = buildBudgetAdvice(totalOutOfPocketCost, liquidSavings.amount(), homeSale, pensionFund);
 
+        MaxLoanAdviceDto maxLoanAdvice = computeMaxLoanAdvice(req, income.amount(), otherDebt, months, propertyValue,
+                totalAncillaryCosts, totalAvailableCapital);
+        List<DurationOptionDto> durationComparison = computeDurationComparison(req.loanAmount(), req.interestRatePct(),
+                req.years(), income.amount(), otherDebt);
+
         return new MortgageSimulationDto(
                 round(monthlyPayment), round(totalPaid), round(totalInterest),
                 round(ltvPct), ltvWarning,
@@ -153,6 +158,7 @@ public class MortgageService {
                 round(liquidSavings.amount()), liquidSavings.source(),
                 homeSale, round(totalAvailableCapital), round(shortfall),
                 pensionFund, budgetAdvice,
+                maxLoanAdvice, durationComparison,
                 buildSchedule(req.loanAmount(), req.interestRatePct(), months, monthlyPayment));
     }
 
@@ -188,6 +194,14 @@ public class MortgageService {
         double monthlyRate = annualRatePct / 100.0 / 12.0;
         if (monthlyRate == 0) return principal / months;
         return principal * monthlyRate / (1 - Math.pow(1 + monthlyRate, -months));
+    }
+
+    /** Inversa della formula di ammortamento alla francese: da una rata sostenibile, il capitale massimo finanziabile. C = R * (1 - (1+i)^-n) / i. */
+    private double calcPrincipalFromPayment(double payment, double annualRatePct, int months) {
+        if (payment <= 0) return 0;
+        double monthlyRate = annualRatePct / 100.0 / 12.0;
+        if (monthlyRate == 0) return payment * months;
+        return payment * (1 - Math.pow(1 + monthlyRate, -months)) / monthlyRate;
     }
 
     private List<AmortizationYearDto> buildSchedule(double principal, double annualRatePct, int months, double monthlyPayment) {
@@ -500,6 +514,79 @@ public class MortgageService {
         }
 
         return advice;
+    }
+
+    // ─────────────────────────────────── Quanto mutuo posso richiedere ────────
+
+    /**
+     * Calcola al contrario, dalla rata sostenibile in base a reddito e altri debiti già in essere, il mutuo
+     * massimo ragionevole: il più basso tra il massimo consentito dal rapporto rata/reddito (soglia limite
+     * 35%) e il massimo consentito dall'LTV (80% del valore dell'immobile) — il vincolo più stringente dei
+     * due, esattamente come farebbe una banca in fase di istruttoria.
+     */
+    private MaxLoanAdviceDto computeMaxLoanAdvice(MortgageRequest req, double income, double otherDebt, int months,
+                                                   double propertyValue, double totalAncillaryCosts, double totalAvailableCapital) {
+        double maxPaymentComfortable = Math.max(0, income * COMFORTABLE_PAYMENT_TO_INCOME_PCT / 100.0 - otherDebt);
+        double maxPaymentAtLimit = Math.max(0, income * MAX_RECOMMENDED_PAYMENT_TO_INCOME_PCT / 100.0 - otherDebt);
+
+        double maxLoanComfortable = calcPrincipalFromPayment(maxPaymentComfortable, req.interestRatePct(), months);
+        double maxLoanAtLimit = calcPrincipalFromPayment(maxPaymentAtLimit, req.interestRatePct(), months);
+        double maxLoanByLtv = propertyValue * MAX_RECOMMENDED_LTV_PCT / 100.0;
+
+        double recommendedMaxLoan = Math.min(maxLoanAtLimit, maxLoanByLtv);
+        String bindingConstraint = maxLoanAtLimit <= maxLoanByLtv ? "REDDITO" : "LTV";
+
+        double requestedLoanAmount = req.loanAmount();
+        String requestedLoanNote = requestedLoanAmount <= recommendedMaxLoan
+                ? String.format(Locale.ITALIAN,
+                    "Il mutuo richiesto di %.0f € è entro il massimo consigliato di %.0f €, con un margine di %.0f €.",
+                    requestedLoanAmount, recommendedMaxLoan, recommendedMaxLoan - requestedLoanAmount)
+                : String.format(Locale.ITALIAN,
+                    "Il mutuo richiesto di %.0f € supera di %.0f € il massimo consigliato di %.0f €, determinato da %s.",
+                    requestedLoanAmount, requestedLoanAmount - recommendedMaxLoan, recommendedMaxLoan,
+                    bindingConstraint.equals("REDDITO") ? "reddito e altri debiti" : "il limite LTV dell'80% del valore dell'immobile");
+
+        double minLoanNeededGivenCapital = Math.max(0, propertyValue + totalAncillaryCosts - totalAvailableCapital);
+        double equityAtRecommendedPct = propertyValue > 0 ? Math.max(0, propertyValue - recommendedMaxLoan) / propertyValue * 100.0 : 0;
+
+        String note = String.format(Locale.ITALIAN,
+                "Con un reddito di %.0f €/mese%s, la rata massima sostenibile è %.0f € alla soglia prudente (30%%) o %.0f € alla "
+                + "soglia limite (35%%). Al tasso e alla durata indicati, corrisponde a un mutuo fino a circa %.0f € (prudente) o "
+                + "%.0f € (limite). Le banche però non superano l'80%% del valore dell'immobile, un vincolo di %.0f €: il fattore "
+                + "più stringente è %s, quindi il mutuo massimo consigliato è %.0f €.",
+                income, otherDebt > 0 ? String.format(Locale.ITALIAN, " (al netto di %.0f €/mese di altri debiti già in essere)", otherDebt) : "",
+                maxPaymentComfortable, maxPaymentAtLimit, maxLoanComfortable, maxLoanAtLimit, maxLoanByLtv,
+                bindingConstraint.equals("REDDITO") ? "il reddito disponibile" : "il limite LTV", recommendedMaxLoan);
+
+        return new MaxLoanAdviceDto(
+                round(maxLoanComfortable), round(maxLoanAtLimit), round(maxLoanByLtv), round(recommendedMaxLoan),
+                bindingConstraint, round(requestedLoanAmount), requestedLoanNote,
+                round(minLoanNeededGivenCapital), round(equityAtRecommendedPct), note);
+    }
+
+    /** Confronta rata, interessi totali e sostenibilità dello stesso mutuo simulato su un ventaglio di durate tipiche, per il classico compromesso rata-più-bassa/interessi-più-alti. */
+    private List<DurationOptionDto> computeDurationComparison(double loanAmount, double ratePct, int selectedYears, double income, double otherDebt) {
+        int[] candidateYears = {10, 15, 20, 25, 30};
+        List<DurationOptionDto> options = new ArrayList<>();
+        boolean selectedIncluded = false;
+
+        for (int y : candidateYears) {
+            options.add(durationOption(loanAmount, ratePct, y, income, otherDebt, y == selectedYears));
+            if (y == selectedYears) selectedIncluded = true;
+        }
+        if (!selectedIncluded) {
+            options.add(durationOption(loanAmount, ratePct, selectedYears, income, otherDebt, true));
+            options.sort(java.util.Comparator.comparingInt(DurationOptionDto::years));
+        }
+        return options;
+    }
+
+    private DurationOptionDto durationOption(double loanAmount, double ratePct, int years, double income, double otherDebt, boolean isSelected) {
+        int months = years * 12;
+        double payment = calcMonthlyPayment(loanAmount, ratePct, months);
+        double totalInterest = payment * months - loanAmount;
+        double combinedRatio = safeRatioPct(payment + otherDebt, income);
+        return new DurationOptionDto(years, round(payment), round(totalInterest), round(combinedRatio), affordabilityLabel(combinedRatio), isSelected);
     }
 
     private double round(double value) {

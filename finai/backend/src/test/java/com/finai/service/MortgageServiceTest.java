@@ -457,4 +457,119 @@ class MortgageServiceTest {
 
         assertThat(result.homeSale().timingNote()).isNotNull().contains("mutuo ponte");
     }
+
+    @Test
+    @DisplayName("quando il reddito è il vincolo più stretto, il mutuo massimo consigliato è quello calcolato dal reddito, non dall'LTV")
+    void maxLoanAdviceBindsOnIncomeWhenTighterThanLtv() {
+        // Immobile costoso (LTV 80% = 800.000€) ma reddito modesto: la rata sostenibile implica un mutuo ben inferiore.
+        MortgageRequest req = Req.of(1_000_000.0, 150_000.0, 3.0, 20).income(2000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.maxLoanAdvice()).isNotNull();
+        assertThat(result.maxLoanAdvice().maxLoanByLtv()).isEqualTo(800_000.0);
+        assertThat(result.maxLoanAdvice().maxLoanAtLimit()).isLessThan(result.maxLoanAdvice().maxLoanByLtv());
+        assertThat(result.maxLoanAdvice().bindingConstraint()).isEqualTo("REDDITO");
+        assertThat(result.maxLoanAdvice().recommendedMaxLoan()).isEqualTo(result.maxLoanAdvice().maxLoanAtLimit());
+    }
+
+    @Test
+    @DisplayName("quando l'LTV è il vincolo più stretto, il mutuo massimo consigliato è l'80% del valore dell'immobile")
+    void maxLoanAdviceBindsOnLtvWhenTighterThanIncome() {
+        // Reddito molto alto (rata sostenibile enorme) ma immobile economico: l'LTV all'80% diventa il vincolo.
+        MortgageRequest req = Req.of(100_000.0, 50_000.0, 3.0, 20).income(20_000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.maxLoanAdvice().maxLoanByLtv()).isEqualTo(80_000.0);
+        assertThat(result.maxLoanAdvice().maxLoanAtLimit()).isGreaterThan(result.maxLoanAdvice().maxLoanByLtv());
+        assertThat(result.maxLoanAdvice().bindingConstraint()).isEqualTo("LTV");
+        assertThat(result.maxLoanAdvice().recommendedMaxLoan()).isEqualTo(80_000.0);
+    }
+
+    @Test
+    @DisplayName("il mutuo richiesto viene confrontato correttamente col massimo consigliato, sopra e sotto soglia")
+    void maxLoanAdviceComparesRequestedAmountCorrectly() {
+        MortgageRequest belowMax = Req.of(1_000_000.0, 50_000.0, 3.0, 20).income(2000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .build();
+        MortgageSimulationDto belowResult = service.simulateMortgage(belowMax);
+        assertThat(belowResult.maxLoanAdvice().requestedLoanAmount()).isEqualTo(50_000.0);
+        assertThat(belowResult.maxLoanAdvice().requestedLoanNote()).contains("entro il massimo consigliato");
+
+        MortgageRequest aboveMax = Req.of(1_000_000.0, 900_000.0, 3.0, 20).income(2000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .build();
+        MortgageSimulationDto aboveResult = service.simulateMortgage(aboveMax);
+        assertThat(aboveResult.maxLoanAdvice().requestedLoanNote()).contains("supera di");
+    }
+
+    @Test
+    @DisplayName("il mutuo minimo necessario dato il capitale disponibile è 0 se la liquidità copre già tutto il costo")
+    void minLoanNeededIsZeroWhenCapitalCoversEverything() {
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .liquidSavings(300_000.0).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.maxLoanAdvice().minLoanNeededGivenCapital()).isEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("il mutuo minimo necessario riflette il capitale insufficiente a coprire prezzo e spese accessorie")
+    void minLoanNeededReflectsInsufficientCapital() {
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .liquidSavings(10_000.0).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        // minLoanNeeded = propertyValue + totalAncillaryCosts(0) - capitale disponibile = 200.000 - 10.000 = 190.000
+        assertThat(result.maxLoanAdvice().minLoanNeededGivenCapital()).isEqualTo(190_000.0);
+    }
+
+    @Test
+    @DisplayName("il confronto tra durate include le durate tipiche e quella selezionata, con rata decrescente all'aumentare degli anni")
+    void durationComparisonIncludesTypicalDurationsAndSelected() {
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 22).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        List<Integer> years = result.durationComparison().stream().map(d -> d.years()).toList();
+        assertThat(years).containsExactly(10, 15, 20, 22, 25, 30);
+
+        assertThat(result.durationComparison().stream().filter(d -> d.years() == 22).findFirst().orElseThrow().isSelected()).isTrue();
+        assertThat(result.durationComparison().stream().filter(d -> d.years() == 10).findFirst().orElseThrow().isSelected()).isFalse();
+
+        double payment10y = result.durationComparison().stream().filter(d -> d.years() == 10).findFirst().orElseThrow().monthlyPayment();
+        double payment30y = result.durationComparison().stream().filter(d -> d.years() == 30).findFirst().orElseThrow().monthlyPayment();
+        double interest10y = result.durationComparison().stream().filter(d -> d.years() == 10).findFirst().orElseThrow().totalInterest();
+        double interest30y = result.durationComparison().stream().filter(d -> d.years() == 30).findFirst().orElseThrow().totalInterest();
+
+        assertThat(payment10y).isGreaterThan(payment30y); // rata più alta su durata più corta
+        assertThat(interest10y).isLessThan(interest30y);  // ma interessi totali più bassi
+    }
+
+    @Test
+    @DisplayName("il confronto tra durate non duplica la durata selezionata se già tra quelle tipiche")
+    void durationComparisonDoesNotDuplicateSelectedWhenAlreadyTypical() {
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        List<Integer> years = result.durationComparison().stream().map(d -> d.years()).toList();
+        assertThat(years).containsExactly(10, 15, 20, 25, 30);
+        assertThat(result.durationComparison().stream().filter(d -> d.years() == 20).findFirst().orElseThrow().isSelected()).isTrue();
+    }
 }

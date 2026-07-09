@@ -301,6 +301,16 @@ const CONTENT: Record<string, React.ReactNode> = {
         <li><strong>Un confronto sui tempi</strong>: se indichi tra quanti mesi prevedi di vendere, FINAI lo confronta con il tempo medio di vendita di un immobile in Italia (~6 mesi) e, se i tuoi tempi sono più stretti, suggerisce un margine di sicurezza, un mutuo ponte o un compromesso condizionato alla vendita.</li>
       </ul>
       <p>Il capitale netto positivo si somma alla liquidità dichiarata nella lista "Da dove attingere", riducendo il fabbisogno residuo del nuovo mutuo.</p>
+      <h3>9. Quanto mutuo potresti richiedere</h3>
+      <p>Una sezione calcola <strong>al contrario</strong>, dagli stessi dati già inseriti, quale importo di mutuo potresti ragionevolmente permetterti — utile per capire se stai chiedendo troppo (o se hai margine per chiedere di più):</p>
+      <ul>
+        <li><strong>Massimo per reddito</strong>: dalla rata sostenibile (reddito meno gli altri debiti già in essere) alla soglia prudente (30%) e alla soglia limite (35%), invertendo la formula di ammortamento con il tasso e la durata indicati.</li>
+        <li><strong>Massimo per LTV</strong>: l'80% del valore dell'immobile, il tetto tipico dei mutui fondiari italiani.</li>
+        <li><strong>Mutuo massimo consigliato</strong>: il più basso tra i due — il vincolo più stringente, esattamente come farebbe una banca in istruttoria — con indicazione di quale dei due vincoli (reddito o LTV) sia quello che conta di più nel tuo caso, e un confronto diretto con l'importo che hai effettivamente simulato.</li>
+        <li><strong>Mutuo minimo necessario dato il tuo capitale</strong>: se il capitale disponibile (liquidità + eventuale vendita) copre già buona parte dell'acquisto, FINAI calcola l'importo minimo di mutuo che ti servirebbe davvero, segnalando se stai chiedendo più del necessario (con interessi evitabili) o se il capitale non basta a restare entro il massimo consigliato.</li>
+      </ul>
+      <h3>10. Rata più bassa o meno interessi? Confronto tra durate</h3>
+      <p>Una tabella confronta lo stesso importo di mutuo simulato su un ventaglio di durate tipiche (10, 15, 20, 25, 30 anni, più quella che hai scelto): rata mensile, interessi totali, rapporto rata/reddito e sostenibilità per ciascuna. È il modo più diretto per vedere il classico compromesso — <strong>durata più lunga = rata più bassa ma interessi totali più alti</strong> — e scegliere in base al proprio budget, non solo alla rata mensile.</p>
     </div>
   ),
   finanziamenti: (
@@ -359,7 +369,7 @@ const CONTENT: Record<string, React.ReactNode> = {
         ['💼 Portafoglio', 'Traccia il portafoglio con P&L in tempo reale. Include: dividendi, benchmark vs S&P 500, simulatore DCA, stima gain fiscale (26% italiano), matrice di correlazione e news aggiornate.'],
         ['🧪 Simulazione', 'Ambiente di paper trading con moneta virtuale: compra e vendi titoli reali ai prezzi live senza rischio, per studiare l\'andamento di un investimento prima di farlo davvero.'],
         ['💰 Finanza Personale', 'Importa l\'estratto conto (PDF/Excel) per categorizzare automaticamente le spese, inserisci i costi fissi mensili e ottieni il budget previsionale del mese successivo con la quota di risparmio investibile, suggerimenti di risparmio concreti e un consiglio di investimento (con portafoglio esempio, controllo del fondo di emergenza/debiti e suggerimento PAC) basato su un breve questionario.'],
-        ['🏠 Mutui', 'Calcola la rata del mutuo per l\'acquisto di una casa: LTV, rapporto rata/reddito, stress test tassi, capitale proprio e spese accessorie (notaio, istruttoria, perizia, agenzia in % o € con IVA automatica, imposte) e a quali fonti attingere per coprirle — liquidità, fondo pensione (se idoneo), o la vendita di un\'altra casa (plusvalenza, mutuo residuo, capitale netto).'],
+        ['🏠 Mutui', 'Calcola la rata del mutuo per l\'acquisto di una casa: LTV, rapporto rata/reddito, stress test tassi, capitale proprio e spese accessorie (notaio, istruttoria, perizia, agenzia in % o € con IVA automatica, imposte), a quali fonti attingere (liquidità, fondo pensione, vendita di un\'altra casa), quanto mutuo potresti richiedere in base a reddito e LTV, e un confronto rata/interessi tra diverse durate.'],
         ['💳 Finanziamenti', 'Calcola la rata di un finanziamento o prestito personale con piano di ammortamento alla francese e rapporto rata/reddito comprensivo di altri debiti già tracciati.'],
         ['🎯 Suggeriti', 'Portafogli modello pre-costruiti per 4 profili di rischio (Conservativo, Bilanciato, Crescita, Aggressivo). Chiedi all\'AI un portafoglio personalizzato.'],
         ['🌐 Macro', 'Dashboard macroeconomica: indici globali (S&P 500, Nasdaq, DAX…), valute, commodity, crypto (BTC, ETH) e tassi USA (10Y/30Y). Sentiment aggregato Risk On/Off.'],

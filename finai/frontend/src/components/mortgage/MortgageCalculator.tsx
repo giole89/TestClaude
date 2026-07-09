@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMortgage, AmortizationYear, MortgageSimulation, PurchaseType, HomeSaleAdvice } from '@/hooks/useMortgage'
+import { useMortgage, AmortizationYear, MortgageSimulation, PurchaseType, HomeSaleAdvice, DurationOption } from '@/hooks/useMortgage'
 import { formatNumber } from '@/lib/formatters'
 
 function affordabilityColor(label: string): string {
@@ -195,6 +195,107 @@ function LiquiditySourcesCard({ result }: { result: MortgageSimulation }) {
               )}
             </div>
             <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)', marginTop: 2, lineHeight: 1.4 }}>{a.message}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function bindingConstraintLabel(constraint: string): string {
+  return constraint === 'REDDITO' ? 'reddito e altri debiti' : 'limite LTV (80% del valore immobile)'
+}
+
+function MaxLoanAdviceCard({ advice }: { advice: MortgageSimulation['maxLoanAdvice'] }) {
+  const requestedOverMax = advice.requestedLoanAmount > advice.recommendedMaxLoan
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--acc)', borderRadius: 12, padding: '16px 20px', marginTop: 16 }}>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>
+        Quanto mutuo potresti richiedere
+      </div>
+      <div style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+        Calcolato al contrario dal tuo reddito, dagli altri debiti già in essere e dal vincolo di LTV che le banche applicano.
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
+        <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Max prudente (30%)</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, color: 'var(--text)' }}>{formatNumber(advice.maxLoanComfortable, 0)} €</div>
+        </div>
+        <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Max soglia limite (35%)</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, color: 'var(--text)' }}>{formatNumber(advice.maxLoanAtLimit, 0)} €</div>
+        </div>
+        <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Max per LTV (80%)</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, color: 'var(--text)' }}>{formatNumber(advice.maxLoanByLtv, 0)} €</div>
+        </div>
+        <div style={{ background: 'rgba(110,231,183,0.08)', border: '1px solid var(--acc)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Massimo consigliato</div>
+          <div style={{ fontFamily: 'Instrument Serif', fontSize: 18, color: 'var(--acc)' }}>{formatNumber(advice.recommendedMaxLoan, 0)} €</div>
+        </div>
+      </div>
+
+      <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)', marginBottom: 10 }}>
+        Vincolo più stringente: <strong style={{ color: 'var(--text)' }}>{bindingConstraintLabel(advice.bindingConstraint)}</strong>.
+        Con questo mutuo, il capitale proprio sarebbe circa il {formatNumber(advice.equityRatioAtRecommendedPct, 0)}% del valore dell'immobile.
+      </div>
+
+      <div style={{
+        padding: '10px 12px', borderRadius: 8, marginBottom: 10,
+        background: requestedOverMax ? 'rgba(239,68,68,0.1)' : 'rgba(110,231,183,0.08)',
+        border: `1px solid ${requestedOverMax ? 'var(--red)' : 'var(--acc)'}`,
+        fontFamily: 'Syne', fontSize: 12, color: requestedOverMax ? 'var(--red)' : 'var(--text)', lineHeight: 1.5,
+      }}>
+        {advice.requestedLoanNote}
+      </div>
+
+      <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--s3)', fontFamily: 'Syne', fontSize: 12, color: 'var(--muted2)', lineHeight: 1.5 }}>
+        <span style={{ fontWeight: 700, color: 'var(--text)' }}>Mutuo minimo necessario dato il tuo capitale: </span>
+        {formatNumber(advice.minLoanNeededGivenCapital, 0)} €.{' '}
+        {advice.minLoanNeededGivenCapital === 0
+          ? 'Il capitale disponibile copre già interamente prezzo e spese accessorie.'
+          : advice.minLoanNeededGivenCapital < advice.requestedLoanAmount
+          ? 'Potresti ridurre l\'importo richiesto usando più capitale proprio, risparmiando sugli interessi totali.'
+          : 'Il capitale disponibile non basta a mantenere il mutuo entro il massimo consigliato: valuta più risparmio o un immobile di valore inferiore.'}
+      </div>
+    </div>
+  )
+}
+
+function DurationComparisonTable({ options }: { options: DurationOption[] }) {
+  return (
+    <div style={{ background: 'var(--s2)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', marginTop: 16 }}>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>
+        Rata più bassa o meno interessi? Confronto tra durate
+      </div>
+      <div style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+        Stesso importo di mutuo simulato con durate diverse: una durata più lunga abbassa la rata ma aumenta il costo totale degli interessi.
+      </div>
+      <div style={{ background: 'var(--s3)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{
+          display: 'grid', gridTemplateColumns: '60px 1fr 1fr 1fr 1fr', gap: 8, padding: '8px 12px',
+          fontFamily: 'Syne', fontWeight: 700, fontSize: 10, color: 'var(--muted)', borderBottom: '1px solid var(--border)',
+        }}>
+          <span>Anni</span>
+          <span style={{ textAlign: 'right' }}>Rata</span>
+          <span style={{ textAlign: 'right' }}>Interessi totali</span>
+          <span style={{ textAlign: 'right' }}>Rata/reddito</span>
+          <span style={{ textAlign: 'right' }}>Sostenibilità</span>
+        </div>
+        {options.map(o => (
+          <div key={o.years} style={{
+            display: 'grid', gridTemplateColumns: '60px 1fr 1fr 1fr 1fr', gap: 8, padding: '8px 12px',
+            fontFamily: 'JetBrains Mono', fontSize: 12, color: 'var(--text)', borderBottom: '1px solid var(--border)',
+            background: o.isSelected ? 'rgba(110,231,183,0.08)' : 'transparent',
+          }}>
+            <span style={{ fontWeight: o.isSelected ? 700 : 400 }}>{o.years} {o.isSelected && '←'}</span>
+            <span style={{ textAlign: 'right' }}>{formatNumber(o.monthlyPayment, 0)} €</span>
+            <span style={{ textAlign: 'right', color: 'var(--muted2)' }}>{formatNumber(o.totalInterest, 0)} €</span>
+            <span style={{ textAlign: 'right' }}>{formatNumber(o.combinedPaymentToIncomeRatioPct, 1)}%</span>
+            <span style={{ textAlign: 'right', fontFamily: 'Syne', fontWeight: 700, fontSize: 11, color: affordabilityColor(o.affordabilityLabel) }}>
+              {o.affordabilityLabel}
+            </span>
           </div>
         ))}
       </div>
@@ -534,7 +635,13 @@ export function MortgageCalculator() {
         {isSimulatingMortgage ? 'Calcolo…' : 'Calcola rata mutuo'}
       </button>
 
-      {mortgageResult && <ResultCard result={mortgageResult} />}
+      {mortgageResult && (
+        <>
+          <ResultCard result={mortgageResult} />
+          <MaxLoanAdviceCard advice={mortgageResult.maxLoanAdvice} />
+          <DurationComparisonTable options={mortgageResult.durationComparison} />
+        </>
+      )}
     </div>
   )
 }

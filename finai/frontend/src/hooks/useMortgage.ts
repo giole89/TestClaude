@@ -69,6 +69,28 @@ export interface HomeSaleAdvice {
   summary: string
 }
 
+export interface MaxLoanAdvice {
+  maxLoanComfortable: number
+  maxLoanAtLimit: number
+  maxLoanByLtv: number
+  recommendedMaxLoan: number
+  bindingConstraint: 'REDDITO' | 'LTV'
+  requestedLoanAmount: number
+  requestedLoanNote: string
+  minLoanNeededGivenCapital: number
+  equityRatioAtRecommendedPct: number
+  note: string
+}
+
+export interface DurationOption {
+  years: number
+  monthlyPayment: number
+  totalInterest: number
+  combinedPaymentToIncomeRatioPct: number
+  affordabilityLabel: 'Sostenibile' | 'Al limite' | 'Rischioso'
+  isSelected: boolean
+}
+
 export interface MortgageSimulation {
   monthlyPayment: number
   totalPaid: number
@@ -110,6 +132,8 @@ export interface MortgageSimulation {
   shortfall: number
   pensionFund: PensionFundAdvice | null
   budgetAdvice: BudgetAdvice[]
+  maxLoanAdvice: MaxLoanAdvice
+  durationComparison: DurationOption[]
   schedule: AmortizationYear[]
 }
 
