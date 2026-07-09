@@ -28,8 +28,13 @@ import java.util.List;
  * @param originationFeesEstimated true se stimate
  * @param appraisalFees          spese di perizia dell'immobile (dichiarate o stimate)
  * @param appraisalFeesEstimated true se stimate
- * @param agencyFees             spese di agenzia immobiliare (dichiarate o stimate)
+ * @param agencyFees             spese di agenzia immobiliare totali, IVA inclusa (dichiarate o stimate)
  * @param agencyFeesEstimated    true se stimate
+ * @param agencyFeesBase         quota di commissione dell'agenzia al netto dell'IVA
+ * @param agencyFeesIva          quota di IVA sulla commissione (22%, aggiunta automaticamente solo quando la
+ *                               commissione è indicata/stimata in percentuale; 0 se dichiarato un importo finale in euro)
+ * @param agencyFeeMode          "PERCENTAGE" se la commissione è stata calcolata da una percentuale (con IVA aggiunta
+ *                               automaticamente), "AMOUNT" se da un importo finale in euro dichiarato
  * @param registrationTax        imposta di registro/IVA sull'acquisto (dichiarata o stimata)
  * @param registrationTaxEstimated true se stimata
  * @param registrationTaxNote    nota sui limiti della stima dell'imposta (approssimata sul prezzo, non sul valore catastale)
@@ -37,7 +42,9 @@ import java.util.List;
  * @param totalOutOfPocketCost   tutto ciò che non rientra nel mutuo: capitale proprio + spese accessorie totali
  * @param availableLiquidSavings liquidità disponibile per coprire il costo non finanziato (dichiarata o dal profilo investitore)
  * @param liquidSavingsSource    "DECLARED" se dichiarata in questa simulazione, "PROFILE" se presa dal questionario investitore, "NONE" se non disponibile
- * @param shortfall              fabbisogno residuo non coperto dalla liquidità disponibile (0 se la liquidità basta)
+ * @param homeSale               stima del capitale disponibile dalla vendita di una casa esistente; null se non dichiarata
+ * @param totalAvailableCapital  liquidità disponibile più l'eventuale capitale netto dalla vendita di una casa esistente (se positivo)
+ * @param shortfall              fabbisogno residuo non coperto dal capitale disponibile complessivo (0 se basta)
  * @param pensionFund            idoneità e stima dell'anticipazione del fondo pensione; null se non dichiarati anni di iscrizione
  * @param budgetAdvice           elenco ordinato di fonti a cui attingere per coprire il fabbisogno residuo
  */
@@ -67,6 +74,9 @@ public record MortgageSimulationDto(
         boolean appraisalFeesEstimated,
         Double agencyFees,
         boolean agencyFeesEstimated,
+        Double agencyFeesBase,
+        Double agencyFeesIva,
+        String agencyFeeMode,
         Double registrationTax,
         boolean registrationTaxEstimated,
         String registrationTaxNote,
@@ -74,6 +84,8 @@ public record MortgageSimulationDto(
         Double totalOutOfPocketCost,
         Double availableLiquidSavings,
         String liquidSavingsSource,
+        HomeSaleAdviceDto homeSale,
+        Double totalAvailableCapital,
         Double shortfall,
         PensionFundAdviceDto pensionFund,
         List<BudgetAdviceDto> budgetAdvice,

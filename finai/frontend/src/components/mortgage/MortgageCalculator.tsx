@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMortgage, AmortizationYear, MortgageSimulation, PurchaseType } from '@/hooks/useMortgage'
+import { useMortgage, AmortizationYear, MortgageSimulation, PurchaseType, HomeSaleAdvice } from '@/hooks/useMortgage'
 import { formatNumber } from '@/lib/formatters'
 
 function affordabilityColor(label: string): string {
@@ -75,7 +75,13 @@ function CostBreakdownCard({ result }: { result: MortgageSimulation }) {
       <CostRow label="Notaio" amount={result.notaryCosts} estimated={result.notaryCostsEstimated} />
       <CostRow label="Istruttoria bancaria" amount={result.originationFees} estimated={result.originationFeesEstimated} />
       <CostRow label="Perizia immobile" amount={result.appraisalFees} estimated={result.appraisalFeesEstimated} />
-      <CostRow label="Agenzia immobiliare" amount={result.agencyFees} estimated={result.agencyFeesEstimated} />
+      <CostRow
+        label={result.agencyFeeMode === 'PERCENTAGE'
+          ? `Agenzia immobiliare (${formatNumber(result.agencyFeesBase, 0)}€ + IVA ${formatNumber(result.agencyFeesIva, 0)}€)`
+          : 'Agenzia immobiliare'}
+        amount={result.agencyFees}
+        estimated={result.agencyFeesEstimated}
+      />
       <CostRow label="Imposta di registro / IVA" amount={result.registrationTax} estimated={result.registrationTaxEstimated} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, marginTop: 4 }}>
         <span style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>Totale da pagare oltre al mutuo</span>
@@ -84,6 +90,52 @@ function CostBreakdownCard({ result }: { result: MortgageSimulation }) {
       <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginTop: 8, lineHeight: 1.4 }}>
         {result.registrationTaxNote}
       </div>
+    </div>
+  )
+}
+
+function HomeSaleCard({ sale }: { sale: HomeSaleAdvice }) {
+  return (
+    <div style={{
+      padding: '10px 12px', borderRadius: 8, marginBottom: 10,
+      background: sale.netProceeds > 0 ? 'rgba(110,231,183,0.08)' : 'rgba(239,68,68,0.1)',
+      border: `1px solid ${sale.netProceeds > 0 ? 'var(--acc)' : 'var(--red)'}`,
+    }}>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--text)', marginBottom: 6 }}>
+        🏡 Vendita immobile esistente
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 8 }}>
+        <div>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Plusvalenza</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--text)' }}>{formatNumber(sale.capitalGain, 0)} €</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Imposta plusvalenza</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: sale.capitalGainsTaxable ? 'var(--red)' : 'var(--text)' }}>
+            {formatNumber(sale.capitalGainsTax, 0)} €
+          </div>
+        </div>
+        <div>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Spese agenzia (vendita)</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--text)' }}>
+            {formatNumber(sale.saleAgencyFees, 0)} € {sale.saleAgencyFeesEstimated && <span style={{ color: 'var(--muted)', fontSize: 9 }}>(stimato)</span>}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Mutuo residuo da estinguere</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--text)' }}>{formatNumber(sale.residualMortgageBalance, 0)} €</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Capitale netto disponibile</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 14, fontWeight: 700, color: sale.netProceeds > 0 ? 'var(--acc)' : 'var(--red)' }}>
+            {formatNumber(sale.netProceeds, 0)} €
+          </div>
+        </div>
+      </div>
+      <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)', lineHeight: 1.4 }}>{sale.capitalGainsNote}</div>
+      {sale.timingNote && (
+        <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--acc3)', lineHeight: 1.4, marginTop: 6 }}>⏱ {sale.timingNote}</div>
+      )}
     </div>
   )
 }
@@ -101,12 +153,20 @@ function LiquiditySourcesCard({ result }: { result: MortgageSimulation }) {
           </div>
         </div>
         <div>
+          <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Capitale totale disponibile</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 16, color: 'var(--text)' }}>
+            {formatNumber(result.totalAvailableCapital, 0)} €
+          </div>
+        </div>
+        <div>
           <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Fabbisogno residuo</div>
           <div style={{ fontFamily: 'JetBrains Mono', fontSize: 16, color: result.shortfall > 0 ? 'var(--red)' : 'var(--acc)' }}>
             {formatNumber(result.shortfall, 0)} €
           </div>
         </div>
       </div>
+
+      {result.homeSale && <HomeSaleCard sale={result.homeSale} />}
 
       {result.pensionFund && (
         <div style={{
@@ -239,12 +299,23 @@ export function MortgageCalculator() {
   const [notaryCosts, setNotaryCosts] = useState('')
   const [originationFees, setOriginationFees] = useState('')
   const [appraisalFees, setAppraisalFees] = useState('')
-  const [agencyFees, setAgencyFees] = useState('')
+  const [agencyFeeMode, setAgencyFeeMode] = useState<'PERCENTAGE' | 'AMOUNT'>('PERCENTAGE')
+  const [agencyFeePct, setAgencyFeePct] = useState('')
+  const [agencyFeeAmount, setAgencyFeeAmount] = useState('')
   const [registrationTax, setRegistrationTax] = useState('')
 
   const [liquidSavings, setLiquidSavings] = useState('')
   const [pensionFundYears, setPensionFundYears] = useState('')
   const [pensionFundBalance, setPensionFundBalance] = useState('')
+
+  const [hasHomeToSell, setHasHomeToSell] = useState(false)
+  const [saleValue, setSaleValue] = useState('')
+  const [purchasePrice, setPurchasePrice] = useState('')
+  const [yearsOwned, setYearsOwned] = useState('')
+  const [mainResidence, setMainResidence] = useState(true)
+  const [residualMortgageBalance, setResidualMortgageBalance] = useState('')
+  const [saleAgencyFees, setSaleAgencyFees] = useState('')
+  const [monthsUntilSale, setMonthsUntilSale] = useState('')
 
   useEffect(() => {
     if (incomeEstimate?.estimatedMonthlyIncome != null && monthlyNetIncome === '') {
@@ -271,6 +342,12 @@ export function MortgageCalculator() {
     return isNaN(parsed) ? null : parsed
   }
 
+  const saleValueNum = parseFloat(saleValue)
+  const purchasePriceNum = parseFloat(purchasePrice)
+  const yearsOwnedNum = parseInt(yearsOwned, 10)
+  const homeSaleValid = hasHomeToSell && !isNaN(saleValueNum) && saleValueNum > 0
+    && !isNaN(purchasePriceNum) && purchasePriceNum > 0 && !isNaN(yearsOwnedNum) && yearsOwnedNum >= 0
+
   const handleSimulate = async () => {
     if (!valid) return
     await simulateMortgage({
@@ -283,11 +360,21 @@ export function MortgageCalculator() {
       notaryCosts: optionalNumber(notaryCosts),
       originationFees: optionalNumber(originationFees),
       appraisalFees: optionalNumber(appraisalFees),
-      agencyFees: optionalNumber(agencyFees),
+      agencyFeePct: agencyFeeMode === 'PERCENTAGE' ? optionalNumber(agencyFeePct) : null,
+      agencyFeeAmount: agencyFeeMode === 'AMOUNT' ? optionalNumber(agencyFeeAmount) : null,
       registrationTax: optionalNumber(registrationTax),
       liquidSavings: optionalNumber(liquidSavings),
       pensionFundYears: optionalInt(pensionFundYears),
       pensionFundBalance: optionalNumber(pensionFundBalance),
+      homeSale: homeSaleValid ? {
+        saleValue: saleValueNum,
+        purchasePrice: purchasePriceNum,
+        yearsOwned: yearsOwnedNum,
+        mainResidence,
+        residualMortgageBalance: optionalNumber(residualMortgageBalance),
+        saleAgencyFees: optionalNumber(saleAgencyFees),
+        monthsUntilSale: optionalInt(monthsUntilSale),
+      } : null,
     })
   }
 
@@ -346,8 +433,24 @@ export function MortgageCalculator() {
           <input value={appraisalFees} onChange={e => setAppraisalFees(e.target.value)} type="number" placeholder="stima ~300€" style={inputStyle} />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={labelStyle}>Agenzia immobiliare (€)</span>
-          <input value={agencyFees} onChange={e => setAgencyFees(e.target.value)} type="number" placeholder="stima ~3%+IVA" style={inputStyle} />
+          <span style={labelStyle}>
+            Agenzia immobiliare
+            <button
+              type="button"
+              onClick={() => setAgencyFeeMode(m => m === 'PERCENTAGE' ? 'AMOUNT' : 'PERCENTAGE')}
+              style={{
+                marginLeft: 6, padding: '1px 8px', borderRadius: 6, border: '1px solid var(--border)',
+                background: 'var(--s2)', color: 'var(--acc)', fontFamily: 'Syne', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              {agencyFeeMode === 'PERCENTAGE' ? '% → passa a €' : '€ → passa a %'}
+            </button>
+          </span>
+          {agencyFeeMode === 'PERCENTAGE' ? (
+            <input value={agencyFeePct} onChange={e => setAgencyFeePct(e.target.value)} type="number" step="0.1" placeholder="stima 3% (+ IVA auto)" style={inputStyle} />
+          ) : (
+            <input value={agencyFeeAmount} onChange={e => setAgencyFeeAmount(e.target.value)} type="number" placeholder="importo finale già con IVA" style={inputStyle} />
+          )}
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={labelStyle}>Imposta di registro / IVA (€)</span>
@@ -372,6 +475,46 @@ export function MortgageCalculator() {
           <input value={pensionFundBalance} onChange={e => setPensionFundBalance(e.target.value)} type="number" placeholder="opzionale" style={inputStyle} />
         </label>
       </div>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 8px', cursor: 'pointer' }}>
+        <input type="checkbox" checked={hasHomeToSell} onChange={e => setHasHomeToSell(e.target.checked)} />
+        <span style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--muted2)' }}>
+          Ho una casa da vendere per finanziare questo acquisto
+        </span>
+      </label>
+
+      {hasHomeToSell && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 12 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={labelStyle}>Valore di vendita stimato (€)</span>
+            <input value={saleValue} onChange={e => setSaleValue(e.target.value)} type="number" placeholder="es. 250000" style={inputStyle} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={labelStyle}>Prezzo di acquisto originario (€)</span>
+            <input value={purchasePrice} onChange={e => setPurchasePrice(e.target.value)} type="number" placeholder="es. 180000" style={inputStyle} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={labelStyle}>Anni di possesso</span>
+            <input value={yearsOwned} onChange={e => setYearsOwned(e.target.value)} type="number" placeholder="es. 6" style={inputStyle} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 18 }}>
+            <input type="checkbox" checked={mainResidence} onChange={e => setMainResidence(e.target.checked)} />
+            <span style={labelStyle}>È stata la tua abitazione principale</span>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={labelStyle}>Mutuo/finanziamento residuo (€)</span>
+            <input value={residualMortgageBalance} onChange={e => setResidualMortgageBalance(e.target.value)} type="number" placeholder="0 se nessuno" style={inputStyle} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={labelStyle}>Spese agenzia per la vendita (€)</span>
+            <input value={saleAgencyFees} onChange={e => setSaleAgencyFees(e.target.value)} type="number" placeholder="stima ~3%+IVA se vuoto" style={inputStyle} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={labelStyle}>Tra quanti mesi prevedi di venderla</span>
+            <input value={monthsUntilSale} onChange={e => setMonthsUntilSale(e.target.value)} type="number" placeholder="opzionale" style={inputStyle} />
+          </label>
+        </div>
+      )}
 
       {mortgageError && (
         <div style={{ color: 'var(--red)', fontFamily: 'Syne', fontSize: 12, marginBottom: 10 }}>

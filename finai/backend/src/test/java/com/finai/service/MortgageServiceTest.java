@@ -3,6 +3,7 @@ package com.finai.service;
 import com.finai.domain.entity.FixedExpense;
 import com.finai.domain.entity.InvestorProfile;
 import com.finai.dto.finance.BudgetDto;
+import com.finai.dto.finance.mortgage.HomeSaleRequest;
 import com.finai.dto.finance.mortgage.LoanRequest;
 import com.finai.dto.finance.mortgage.LoanSimulationDto;
 import com.finai.dto.finance.mortgage.MortgageRequest;
@@ -30,7 +31,8 @@ import static org.mockito.Mockito.when;
 /**
  * Test unitari per {@link MortgageService}: calcolo rata, LTV, rapporto rata/reddito
  * (incluso il contributo di altri debiti già in essere), stress test tassi, costo
- * dell'acquisto non coperto dal mutuo e idoneità del fondo pensione.
+ * dell'acquisto non coperto dal mutuo, commissione di agenzia (% o importo fisso),
+ * vendita di un immobile esistente e idoneità del fondo pensione.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("MortgageService")
@@ -68,16 +70,48 @@ class MortgageServiceTest {
         return new BudgetDto("Agosto 2026", income, 0.0, 0.0, List.of(), List.of(), income, income, 3, hasEnoughData, false);
     }
 
-    /** Costruisce una richiesta di mutuo con i soli campi obbligatori, tutto il resto null (costi/fondo pensione stimati). */
-    private MortgageRequest basicRequest(double propertyValue, double loanAmount, double ratePct, int years, Double income) {
-        return new MortgageRequest(propertyValue, loanAmount, ratePct, years, income,
-                null, null, null, null, null, null, null, null, null);
+    /** Builder locale per costruire {@link MortgageRequest} nei test senza dover elencare tutti i 16 campi posizionali ad ogni chiamata. */
+    private static final class Req {
+        double propertyValue, loanAmount, interestRatePct;
+        int years;
+        Double monthlyNetIncome;
+        String purchaseType;
+        Double notaryCosts, originationFees, appraisalFees, agencyFeePct, agencyFeeAmount, registrationTax, liquidSavings, pensionFundBalance;
+        Integer pensionFundYears;
+        HomeSaleRequest homeSale;
+
+        static Req of(double propertyValue, double loanAmount, double interestRatePct, int years) {
+            Req r = new Req();
+            r.propertyValue = propertyValue;
+            r.loanAmount = loanAmount;
+            r.interestRatePct = interestRatePct;
+            r.years = years;
+            return r;
+        }
+
+        Req income(Double v) { this.monthlyNetIncome = v; return this; }
+        Req purchaseType(String v) { this.purchaseType = v; return this; }
+        Req notary(Double v) { this.notaryCosts = v; return this; }
+        Req origination(Double v) { this.originationFees = v; return this; }
+        Req appraisal(Double v) { this.appraisalFees = v; return this; }
+        Req agencyPct(Double v) { this.agencyFeePct = v; return this; }
+        Req agencyAmount(Double v) { this.agencyFeeAmount = v; return this; }
+        Req registrationTax(Double v) { this.registrationTax = v; return this; }
+        Req liquidSavings(Double v) { this.liquidSavings = v; return this; }
+        Req pensionFund(Integer years, Double balance) { this.pensionFundYears = years; this.pensionFundBalance = balance; return this; }
+        Req homeSale(HomeSaleRequest v) { this.homeSale = v; return this; }
+
+        MortgageRequest build() {
+            return new MortgageRequest(propertyValue, loanAmount, interestRatePct, years, monthlyNetIncome,
+                    purchaseType, notaryCosts, originationFees, appraisalFees, agencyFeePct, agencyFeeAmount,
+                    registrationTax, liquidSavings, pensionFundYears, pensionFundBalance, homeSale);
+        }
     }
 
     @Test
     @DisplayName("con tasso 0% la rata è semplicemente capitale/numero rate")
     void zeroRateMortgageIsFlatInstallment() {
-        MortgageRequest req = basicRequest(200_000.0, 120_000.0, 0.0, 10, 2000.0);
+        MortgageRequest req = Req.of(200_000.0, 120_000.0, 0.0, 10).income(2000.0).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.monthlyPayment()).isEqualTo(1000.0);
@@ -90,8 +124,8 @@ class MortgageServiceTest {
     @Test
     @DisplayName("segnala LTV oltre l'80% ma non a esattamente l'80%")
     void flagsLtvAboveThresholdOnly() {
-        MortgageRequest highLtv = basicRequest(200_000.0, 180_000.0, 0.0, 10, 5000.0);
-        MortgageRequest exactLtv = basicRequest(200_000.0, 160_000.0, 0.0, 10, 5000.0);
+        MortgageRequest highLtv = Req.of(200_000.0, 180_000.0, 0.0, 10).income(5000.0).build();
+        MortgageRequest exactLtv = Req.of(200_000.0, 160_000.0, 0.0, 10).income(5000.0).build();
 
         MortgageSimulationDto high = service.simulateMortgage(highLtv);
         MortgageSimulationDto exact = service.simulateMortgage(exactLtv);
@@ -107,7 +141,7 @@ class MortgageServiceTest {
     void combinedRatioIncludesOtherActiveDebts() {
         when(fixedExpenseRepo.findByActiveTrue()).thenReturn(List.of(debt("Prestito auto", 300.0, 7.0)));
 
-        MortgageRequest req = basicRequest(200_000.0, 24_000.0, 0.0, 1, 2000.0);
+        MortgageRequest req = Req.of(200_000.0, 24_000.0, 0.0, 1).income(2000.0).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.monthlyPayment()).isEqualTo(2000.0);
@@ -123,7 +157,7 @@ class MortgageServiceTest {
     void fallsBackToEstimatedIncomeWhenNotDeclared() {
         when(budgetService.computeNextMonthBudget()).thenReturn(budgetWithIncome(3000.0, true));
 
-        MortgageRequest req = basicRequest(200_000.0, 120_000.0, 0.0, 10, null);
+        MortgageRequest req = Req.of(200_000.0, 120_000.0, 0.0, 10).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.monthlyNetIncome()).isEqualTo(3000.0);
@@ -135,7 +169,7 @@ class MortgageServiceTest {
     void throwsWhenNoIncomeAvailable() {
         when(budgetService.computeNextMonthBudget()).thenReturn(budgetWithIncome(0.0, false));
 
-        MortgageRequest req = basicRequest(200_000.0, 120_000.0, 3.0, 20, null);
+        MortgageRequest req = Req.of(200_000.0, 120_000.0, 3.0, 20).build();
 
         assertThatThrownBy(() -> service.simulateMortgage(req))
                 .isInstanceOf(FinaiException.class)
@@ -145,7 +179,7 @@ class MortgageServiceTest {
     @Test
     @DisplayName("uno stress test di +2 punti percentuali può far superare la soglia di sostenibilità anche se la rata base è sotto soglia")
     void stressTestCanTipAffordabilityOverThreshold() {
-        MortgageRequest req = basicRequest(300_000.0, 240_000.0, 3.0, 30, 3000.0);
+        MortgageRequest req = Req.of(300_000.0, 240_000.0, 3.0, 30).income(3000.0).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.combinedPaymentToIncomeRatioPct()).isLessThan(35.0);
@@ -172,8 +206,10 @@ class MortgageServiceTest {
     @Test
     @DisplayName("usa i costi accessori dichiarati quando forniti, senza segnarli come stimati")
     void usesDeclaredCostsWhenProvided() {
-        MortgageRequest req = new MortgageRequest(200_000.0, 150_000.0, 3.0, 20, 3000.0,
-                "PRIMA_CASA_PRIVATO", 2500.0, 800.0, 350.0, 6000.0, 3000.0, null, null, null);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(2500.0).origination(800.0).appraisal(350.0).agencyAmount(6000.0).registrationTax(3000.0)
+                .build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.notaryCosts()).isEqualTo(2500.0);
@@ -182,6 +218,7 @@ class MortgageServiceTest {
         assertThat(result.originationFeesEstimated()).isFalse();
         assertThat(result.appraisalFees()).isEqualTo(350.0);
         assertThat(result.agencyFees()).isEqualTo(6000.0);
+        assertThat(result.agencyFeesEstimated()).isFalse();
         assertThat(result.registrationTax()).isEqualTo(3000.0);
         assertThat(result.registrationTaxEstimated()).isFalse();
 
@@ -191,9 +228,9 @@ class MortgageServiceTest {
     }
 
     @Test
-    @DisplayName("senza costi dichiarati stima notaio, istruttoria, perizia, agenzia e imposta di registro (prima casa da privato)")
+    @DisplayName("senza costi dichiarati stima notaio, istruttoria, perizia, agenzia (3%+IVA) e imposta di registro (prima casa da privato)")
     void estimatesAncillaryCostsWhenNotDeclared() {
-        MortgageRequest req = basicRequest(200_000.0, 150_000.0, 3.0, 20, 3000.0);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.notaryCostsEstimated()).isTrue();
@@ -203,16 +240,58 @@ class MortgageServiceTest {
         assertThat(result.appraisalFeesEstimated()).isTrue();
         assertThat(result.appraisalFees()).isEqualTo(300.0); // flat
         assertThat(result.agencyFeesEstimated()).isTrue();
-        assertThat(result.agencyFees()).isEqualTo(round2(200_000.0 * 0.03 * 1.22)); // 3% + IVA 22%
+        assertThat(result.agencyFeeMode()).isEqualTo("PERCENTAGE");
+        assertThat(result.agencyFeesBase()).isEqualTo(6000.0); // 3% di 200.000
+        assertThat(result.agencyFeesIva()).isEqualTo(1320.0); // 22% di 6000
+        assertThat(result.agencyFees()).isEqualTo(7320.0);
         assertThat(result.registrationTaxEstimated()).isTrue();
         assertThat(result.registrationTax()).isEqualTo(4000.0); // 2% di 200.000 (prima casa privato)
     }
 
     @Test
+    @DisplayName("commissione agenzia in percentuale: aggiunge automaticamente l'IVA al 22%")
+    void agencyFeeFromPercentageAddsIvaAutomatically() {
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0).agencyPct(3.0).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.agencyFeeMode()).isEqualTo("PERCENTAGE");
+        assertThat(result.agencyFeesEstimated()).isFalse();
+        assertThat(result.agencyFeesBase()).isEqualTo(6000.0);
+        assertThat(result.agencyFeesIva()).isEqualTo(1320.0);
+        assertThat(result.agencyFees()).isEqualTo(7320.0);
+    }
+
+    @Test
+    @DisplayName("commissione agenzia in euro: nessuna IVA aggiuntiva, l'importo è considerato già finale")
+    void agencyFeeFromFlatAmountHasNoAdditionalIva() {
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0).agencyAmount(5000.0).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.agencyFeeMode()).isEqualTo("AMOUNT");
+        assertThat(result.agencyFeesEstimated()).isFalse();
+        assertThat(result.agencyFeesBase()).isEqualTo(5000.0);
+        assertThat(result.agencyFeesIva()).isEqualTo(0.0);
+        assertThat(result.agencyFees()).isEqualTo(5000.0);
+    }
+
+    @Test
+    @DisplayName("se dichiarati entrambi, la percentuale ha priorità sull'importo fisso per la commissione di agenzia")
+    void agencyFeePercentageTakesPriorityOverAmount() {
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0)
+                .agencyPct(2.0).agencyAmount(9999.0).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.agencyFeeMode()).isEqualTo("PERCENTAGE");
+        assertThat(result.agencyFeesBase()).isEqualTo(4000.0); // 2% di 200.000
+    }
+
+    @Test
     @DisplayName("il fabbisogno residuo (shortfall) usa la liquidità dichiarata, altrimenti quella del profilo investitore")
     void shortfallUsesDeclaredThenProfileLiquidSavings() {
-        MortgageRequest declared = new MortgageRequest(200_000.0, 180_000.0, 0.0, 10, 3000.0,
-                "PRIMA_CASA_PRIVATO", 0.0, 0.0, 0.0, 0.0, 0.0, 15_000.0, null, null);
+        MortgageRequest declared = Req.of(200_000.0, 180_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .liquidSavings(15_000.0).build();
         MortgageSimulationDto declaredResult = service.simulateMortgage(declared);
         assertThat(declaredResult.availableLiquidSavings()).isEqualTo(15_000.0);
         assertThat(declaredResult.liquidSavingsSource()).isEqualTo("DECLARED");
@@ -222,8 +301,10 @@ class MortgageServiceTest {
         profile.setLiquidSavings(BigDecimal.valueOf(8_000.0));
         when(investorProfileRepo.findById("default")).thenReturn(Optional.of(profile));
 
-        MortgageRequest fromProfile = new MortgageRequest(200_000.0, 180_000.0, 0.0, 10, 3000.0,
-                "PRIMA_CASA_PRIVATO", 0.0, 0.0, 0.0, 0.0, 0.0, null, null, null);
+        MortgageRequest fromProfile = Req.of(200_000.0, 180_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .build();
         MortgageSimulationDto profileResult = service.simulateMortgage(fromProfile);
         assertThat(profileResult.availableLiquidSavings()).isEqualTo(8_000.0);
         assertThat(profileResult.liquidSavingsSource()).isEqualTo("PROFILE");
@@ -232,8 +313,10 @@ class MortgageServiceTest {
     @Test
     @DisplayName("con meno di 8 anni di iscrizione il fondo pensione non è idoneo per l'anticipazione prima casa")
     void pensionFundNotEligibleBeforeEightYears() {
-        MortgageRequest req = new MortgageRequest(200_000.0, 150_000.0, 3.0, 20, 3000.0,
-                "PRIMA_CASA_PRIVATO", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2, 10_000.0);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .pensionFund(2, 10_000.0).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.pensionFund()).isNotNull();
@@ -246,8 +329,10 @@ class MortgageServiceTest {
     @Test
     @DisplayName("con almeno 8 anni di iscrizione e prima casa il fondo pensione è idoneo e stima l'anticipazione al 75%")
     void pensionFundEligibleAfterEightYearsForFirstHome() {
-        MortgageRequest req = new MortgageRequest(200_000.0, 150_000.0, 3.0, 20, 3000.0,
-                "PRIMA_CASA_PRIVATO", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10, 40_000.0);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .pensionFund(10, 40_000.0).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.pensionFund().eligibleForHomePurchase()).isTrue();
@@ -258,8 +343,10 @@ class MortgageServiceTest {
     @Test
     @DisplayName("per la seconda casa il fondo pensione non è mai idoneo, anche con più di 8 anni di iscrizione")
     void pensionFundNeverEligibleForSecondHome() {
-        MortgageRequest req = new MortgageRequest(200_000.0, 150_000.0, 3.0, 20, 3000.0,
-                "SECONDA_CASA_PRIVATO", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 15, 40_000.0);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 3.0, 20).income(3000.0)
+                .purchaseType("SECONDA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .pensionFund(15, 40_000.0).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.pensionFund().eligibleForHomePurchase()).isFalse();
@@ -272,8 +359,10 @@ class MortgageServiceTest {
         BudgetDto withInvestable = new BudgetDto("Agosto 2026", 3000.0, 500.0, 500.0, List.of(), List.of(), 500.0, 500.0, 3, true, false);
         when(budgetService.computeNextMonthBudget()).thenReturn(withInvestable);
 
-        MortgageRequest req = new MortgageRequest(200_000.0, 150_000.0, 0.0, 10, 3000.0,
-                "PRIMA_CASA_PRIVATO", 0.0, 0.0, 0.0, 0.0, 0.0, 10_000.0, null, null);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .liquidSavings(10_000.0).build();
         MortgageSimulationDto result = service.simulateMortgage(req);
 
         assertThat(result.budgetAdvice()).isNotEmpty();
@@ -281,7 +370,91 @@ class MortgageServiceTest {
         assertThat(result.budgetAdvice().stream().anyMatch(a -> a.source().equals("Risparmio mensile residuo"))).isTrue();
     }
 
-    private double round2(double value) {
-        return Math.round(value * 100.0) / 100.0;
+    @Test
+    @DisplayName("la plusvalenza da vendita di una casa posseduta da meno di 5 anni e non abitazione principale è tassata al 26%")
+    void homeSaleCapitalGainsTaxableWhenRecentAndNotMainResidence() {
+        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 3, false, 0.0, 0.0, null);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.homeSale()).isNotNull();
+        assertThat(result.homeSale().capitalGain()).isEqualTo(100_000.0);
+        assertThat(result.homeSale().capitalGainsTaxable()).isTrue();
+        assertThat(result.homeSale().capitalGainsTax()).isEqualTo(26_000.0);
+    }
+
+    @Test
+    @DisplayName("la plusvalenza è esente se l'immobile è stato abitazione principale, anche se venduto prima di 5 anni")
+    void homeSaleCapitalGainsExemptWhenMainResidence() {
+        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 2, true, 0.0, 0.0, null);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.homeSale().capitalGainsTaxable()).isFalse();
+        assertThat(result.homeSale().capitalGainsTax()).isEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("la plusvalenza è esente dopo 5 anni di possesso, anche senza abitazione principale")
+    void homeSaleCapitalGainsExemptAfterFiveYears() {
+        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 6, false, 0.0, 0.0, null);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.homeSale().capitalGainsTaxable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("il capitale netto dalla vendita sottrae mutuo residuo e spese di agenzia, e riduce il fabbisogno del mutuo")
+    void homeSaleNetProceedsReduceShortfall() {
+        HomeSaleRequest sale = new HomeSaleRequest(200_000.0, 150_000.0, 10, true, 50_000.0, 5_000.0, null);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        // netProceeds = 200.000 - 5.000 (agenzia) - 50.000 (mutuo residuo) - 0 (esente, abitazione principale) = 145.000
+        assertThat(result.homeSale().netProceeds()).isEqualTo(145_000.0);
+        assertThat(result.totalAvailableCapital()).isEqualTo(145_000.0); // nessuna liquidità dichiarata
+        assertThat(result.shortfall()).isEqualTo(Math.max(0, result.totalOutOfPocketCost() - 145_000.0));
+        assertThat(result.budgetAdvice().get(0).source()).isEqualTo("Vendita immobile esistente");
+    }
+
+    @Test
+    @DisplayName("se mutuo residuo e spese superano il valore di vendita, la vendita non libera capitale e lo segnala")
+    void homeSaleNegativeNetProceedsIsFlagged() {
+        HomeSaleRequest sale = new HomeSaleRequest(100_000.0, 90_000.0, 10, true, 110_000.0, 0.0, null);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.homeSale().netProceeds()).isLessThan(0);
+        assertThat(result.totalAvailableCapital()).isEqualTo(0.0);
+        assertThat(result.budgetAdvice().stream().anyMatch(a -> a.source().equals("Vendita immobile esistente") && a.amount() == 0.0)).isTrue();
+    }
+
+    @Test
+    @DisplayName("se i tempi di vendita previsti sono più corti della media, segnala il rischio di tempistica")
+    void homeSaleTimingNoteWarnsWhenFasterThanAverage() {
+        HomeSaleRequest sale = new HomeSaleRequest(200_000.0, 150_000.0, 10, true, 0.0, 0.0, 2);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.homeSale().timingNote()).isNotNull().contains("mutuo ponte");
     }
 }

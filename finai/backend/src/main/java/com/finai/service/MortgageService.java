@@ -59,6 +59,12 @@ public class MortgageService {
     private static final int PENSION_FUND_MIN_YEARS_FOR_HOME = 8;
     private static final double PENSION_FUND_MAX_ANTICIPATION_PCT = 75.0;
 
+    /** Anni di possesso sotto i quali la plusvalenza da vendita immobiliare è tassabile, salvo esenzione prima casa (art. 67 TUIR). */
+    private static final int CAPITAL_GAINS_EXEMPT_HOLDING_YEARS = 5;
+    private static final double CAPITAL_GAINS_SUBSTITUTE_TAX_PCT = 26.0;
+    /** Tempo medio indicativo per concludere la vendita di un immobile in Italia, usato solo per un confronto informativo sui tempi. */
+    private static final int TYPICAL_SALE_TIMEFRAME_MONTHS = 6;
+
     private static final Set<String> FIRST_HOME_TYPES = Set.of("PRIMA_CASA_PRIVATO", "PRIMA_CASA_COSTRUTTORE");
     private static final Set<String> VALID_PURCHASE_TYPES = Set.of(
             "PRIMA_CASA_PRIVATO", "PRIMA_CASA_COSTRUTTORE", "SECONDA_CASA_PRIVATO", "SECONDA_CASA_COSTRUTTORE");
@@ -111,18 +117,21 @@ public class MortgageService {
         CostLine notary = resolveCost(req.notaryCosts(), propertyValue * NOTARY_DEFAULT_PCT_OF_PROPERTY / 100.0);
         CostLine origination = resolveCost(req.originationFees(), req.loanAmount() * ORIGINATION_DEFAULT_PCT_OF_LOAN / 100.0);
         CostLine appraisal = resolveCost(req.appraisalFees(), APPRAISAL_DEFAULT_FLAT);
-        CostLine agency = resolveCost(req.agencyFees(), propertyValue * AGENCY_DEFAULT_PCT_OF_PROPERTY / 100.0 * AGENCY_IVA_MULTIPLIER);
+        AgencyFeeLine agency = resolveAgencyFee(req.agencyFeePct(), req.agencyFeeAmount(), propertyValue);
         CostLine registrationTax = resolveCost(req.registrationTax(), estimateRegistrationTax(propertyValue, purchaseType));
 
         double downPayment = Math.max(0, propertyValue - req.loanAmount());
-        double totalAncillaryCosts = notary.amount() + origination.amount() + appraisal.amount() + agency.amount() + registrationTax.amount();
+        double totalAncillaryCosts = notary.amount() + origination.amount() + appraisal.amount() + agency.total() + registrationTax.amount();
         double totalOutOfPocketCost = downPayment + totalAncillaryCosts;
 
         LiquidSavingsContext liquidSavings = resolveLiquidSavings(req.liquidSavings());
-        double shortfall = Math.max(0, totalOutOfPocketCost - liquidSavings.amount());
+        HomeSaleAdviceDto homeSale = homeSaleAdvice(req.homeSale());
+        double netSaleProceeds = homeSale != null ? homeSale.netProceeds() : 0.0;
+        double totalAvailableCapital = liquidSavings.amount() + Math.max(0, netSaleProceeds);
+        double shortfall = Math.max(0, totalOutOfPocketCost - totalAvailableCapital);
 
         PensionFundAdviceDto pensionFund = pensionFundAdvice(req.pensionFundYears(), req.pensionFundBalance(), purchaseType);
-        List<BudgetAdviceDto> budgetAdvice = buildBudgetAdvice(totalOutOfPocketCost, liquidSavings.amount(), pensionFund);
+        List<BudgetAdviceDto> budgetAdvice = buildBudgetAdvice(totalOutOfPocketCost, liquidSavings.amount(), homeSale, pensionFund);
 
         return new MortgageSimulationDto(
                 round(monthlyPayment), round(totalPaid), round(totalInterest),
@@ -135,13 +144,14 @@ public class MortgageService {
                 round(notary.amount()), notary.estimated(),
                 round(origination.amount()), origination.estimated(),
                 round(appraisal.amount()), appraisal.estimated(),
-                round(agency.amount()), agency.estimated(),
+                round(agency.total()), agency.estimated(), round(agency.base()), round(agency.iva()), agency.mode(),
                 round(registrationTax.amount()), registrationTax.estimated(),
                 "Stima approssimata sul prezzo dichiarato: per un acquisto da privato l'imposta di registro si calcola in "
                 + "realtà sul valore catastale (in genere inferiore al prezzo di mercato), quindi questa stima è spesso "
                 + "più alta del dovuto — chiedi il calcolo esatto al notaio prima di impegnarti.",
                 round(totalAncillaryCosts), round(totalOutOfPocketCost),
-                round(liquidSavings.amount()), liquidSavings.source(), round(shortfall),
+                round(liquidSavings.amount()), liquidSavings.source(),
+                homeSale, round(totalAvailableCapital), round(shortfall),
                 pensionFund, budgetAdvice,
                 buildSchedule(req.loanAmount(), req.interestRatePct(), months, monthlyPayment));
     }
@@ -262,6 +272,28 @@ public class MortgageService {
         return declared != null ? new CostLine(declared, false) : new CostLine(estimate, true);
     }
 
+    private record AgencyFeeLine(double base, double iva, double total, boolean estimated, String mode) {}
+
+    /**
+     * La commissione di agenzia in Italia si esprime tipicamente come percentuale + IVA: se l'utente indica una
+     * percentuale, l'IVA al 22% viene aggiunta automaticamente al totale. Se indica invece un importo finale in
+     * euro (es. da un preventivo), lo si considera già comprensivo di ogni imposta, senza ulteriori aggiunte.
+     * Senza alcun dato dichiarato, si stima una commissione standard del 3% + IVA sul valore dell'immobile.
+     */
+    private AgencyFeeLine resolveAgencyFee(Double declaredPct, Double declaredAmount, double propertyValue) {
+        if (declaredPct != null) {
+            double base = propertyValue * declaredPct / 100.0;
+            double iva = base * (AGENCY_IVA_MULTIPLIER - 1);
+            return new AgencyFeeLine(base, iva, base + iva, false, "PERCENTAGE");
+        }
+        if (declaredAmount != null) {
+            return new AgencyFeeLine(declaredAmount, 0, declaredAmount, false, "AMOUNT");
+        }
+        double base = propertyValue * AGENCY_DEFAULT_PCT_OF_PROPERTY / 100.0;
+        double iva = base * (AGENCY_IVA_MULTIPLIER - 1);
+        return new AgencyFeeLine(base, iva, base + iva, true, "PERCENTAGE");
+    }
+
     private String resolvePurchaseType(String raw) {
         if (raw == null || raw.isBlank()) return "PRIMA_CASA_PRIVATO";
         String normalized = raw.trim().toUpperCase(Locale.ITALIAN);
@@ -338,8 +370,75 @@ public class MortgageService {
         return new PensionFundAdviceDto(years, eligible, yearsUntilEligible, maxAnticipationPct, estimatedMax, note);
     }
 
+    // ─────────────────────────────────── Vendita casa esistente ───────────────
+
+    /**
+     * Stima il capitale disponibile dalla vendita di una casa esistente: valore di vendita meno spese di
+     * agenzia, meno l'eventuale mutuo/finanziamento residuo da estinguere, meno l'eventuale imposta sulla
+     * plusvalenza. La plusvalenza (art. 67 TUIR) è tassabile con imposta sostitutiva del 26% solo se
+     * l'immobile è posseduto da meno di 5 anni e non è stato abitazione principale per la maggior parte del
+     * periodo di possesso; altrimenti è sempre esente.
+     */
+    private HomeSaleAdviceDto homeSaleAdvice(HomeSaleRequest req) {
+        if (req == null) return null;
+
+        double capitalGain = Math.max(0, req.saleValue() - req.purchasePrice());
+        boolean mainResidence = Boolean.TRUE.equals(req.mainResidence());
+        boolean withinExemptWindow = req.yearsOwned() < CAPITAL_GAINS_EXEMPT_HOLDING_YEARS;
+        boolean taxable = capitalGain > 0 && withinExemptWindow && !mainResidence;
+        double tax = taxable ? capitalGain * CAPITAL_GAINS_SUBSTITUTE_TAX_PCT / 100.0 : 0.0;
+
+        String capitalGainsNote;
+        if (capitalGain <= 0) {
+            capitalGainsNote = "Nessuna plusvalenza da tassare: il prezzo di vendita non supera quello di acquisto.";
+        } else if (taxable) {
+            capitalGainsNote = String.format(Locale.ITALIAN,
+                    "La plusvalenza di %.0f € è tassabile (immobile posseduto da meno di %d anni e non abitazione principale "
+                    + "per la maggior parte del periodo di possesso): imposta sostitutiva del %.0f%% pari a %.0f € (in alternativa "
+                    + "puoi optare in dichiarazione per la tassazione IRPEF ordinaria, spesso meno conveniente).",
+                    capitalGain, CAPITAL_GAINS_EXEMPT_HOLDING_YEARS, CAPITAL_GAINS_SUBSTITUTE_TAX_PCT, tax);
+        } else {
+            capitalGainsNote = String.format(Locale.ITALIAN,
+                    "La plusvalenza di %.0f € non è tassabile: %s.", capitalGain,
+                    mainResidence
+                            ? "l'immobile è stato abitazione principale per la maggior parte del periodo di possesso"
+                            : String.format(Locale.ITALIAN, "sono passati almeno %d anni dall'acquisto", CAPITAL_GAINS_EXEMPT_HOLDING_YEARS));
+        }
+
+        CostLine saleAgency = resolveCost(req.saleAgencyFees(), req.saleValue() * AGENCY_DEFAULT_PCT_OF_PROPERTY / 100.0 * AGENCY_IVA_MULTIPLIER);
+        double residual = req.residualMortgageBalance() != null ? req.residualMortgageBalance() : 0.0;
+        double netProceeds = req.saleValue() - saleAgency.amount() - residual - tax;
+
+        String timingNote = null;
+        if (req.monthsUntilSale() != null) {
+            timingNote = req.monthsUntilSale() < TYPICAL_SALE_TIMEFRAME_MONTHS
+                    ? String.format(Locale.ITALIAN,
+                        "Prevedi di completare la vendita in %d mesi: il tempo medio per vendere un immobile in Italia è di circa "
+                        + "%d mesi. Se il capitale ti serve per la data prevista, valuta un margine di sicurezza, un mutuo ponte, "
+                        + "o un compromesso di acquisto condizionato al buon esito della vendita.",
+                        req.monthsUntilSale(), TYPICAL_SALE_TIMEFRAME_MONTHS)
+                    : String.format(Locale.ITALIAN,
+                        "La tempistica prevista (%d mesi) è in linea con il tempo medio di vendita di un immobile in Italia (~%d mesi).",
+                        req.monthsUntilSale(), TYPICAL_SALE_TIMEFRAME_MONTHS);
+        }
+
+        String summary = netProceeds > 0
+                ? String.format(Locale.ITALIAN,
+                    "Dalla vendita ricaveresti circa %.0f € netti (dopo spese di agenzia%s%s) da usare come capitale per il nuovo acquisto.",
+                    netProceeds, residual > 0 ? ", estinzione del mutuo residuo" : "", taxable ? " e imposta sulla plusvalenza" : "")
+                : String.format(Locale.ITALIAN,
+                    "Attenzione: dopo spese di agenzia%s%s, la vendita non libererebbe capitale — mancherebbero ancora circa %.0f €.",
+                    residual > 0 ? ", estinzione del mutuo residuo" : "", taxable ? " e imposta sulla plusvalenza" : "", Math.abs(netProceeds));
+
+        return new HomeSaleAdviceDto(
+                round(capitalGain), taxable, round(tax), capitalGainsNote,
+                round(saleAgency.amount()), saleAgency.estimated(),
+                round(residual), round(netProceeds),
+                req.monthsUntilSale(), timingNote, summary);
+    }
+
     /** Elenco ordinato di fonti a cui attingere per coprire capitale proprio e spese accessorie non finanziate dal mutuo. */
-    private List<BudgetAdviceDto> buildBudgetAdvice(double totalOutOfPocketCost, double availableLiquidSavings, PensionFundAdviceDto pensionFund) {
+    private List<BudgetAdviceDto> buildBudgetAdvice(double totalOutOfPocketCost, double availableLiquidSavings, HomeSaleAdviceDto homeSale, PensionFundAdviceDto pensionFund) {
         List<BudgetAdviceDto> advice = new ArrayList<>();
         double remaining = totalOutOfPocketCost;
 
@@ -349,6 +448,18 @@ public class MortgageService {
             advice.add(new BudgetAdviceDto("Liquidità disponibile",
                     String.format(Locale.ITALIAN, "Copre %.0f € dei %.0f € necessari con la liquidità dichiarata.", used, totalOutOfPocketCost),
                     round(used)));
+        }
+
+        if (homeSale != null) {
+            if (homeSale.netProceeds() > 0) {
+                double used = Math.min(homeSale.netProceeds(), Math.max(0, remaining));
+                remaining -= used;
+                advice.add(new BudgetAdviceDto("Vendita immobile esistente",
+                        String.format(Locale.ITALIAN, "%s Copre %.0f € del fabbisogno.", homeSale.summary(), used),
+                        round(used)));
+            } else {
+                advice.add(new BudgetAdviceDto("Vendita immobile esistente", homeSale.summary(), 0.0));
+            }
         }
 
         if (remaining > 0 && pensionFund != null && pensionFund.eligibleForHomePurchase() && pensionFund.estimatedMaxAnticipation() != null) {

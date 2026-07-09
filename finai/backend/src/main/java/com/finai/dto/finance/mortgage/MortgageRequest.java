@@ -1,5 +1,6 @@
 package com.finai.dto.finance.mortgage;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -17,7 +18,12 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param notaryCosts      costi di notaio dichiarati; se null, stima indicativa
  * @param originationFees  spese di istruttoria della banca dichiarate; se null, stima indicativa
  * @param appraisalFees    spese di perizia dell'immobile dichiarate; se null, stima indicativa
- * @param agencyFees       spese di agenzia immobiliare dichiarate; se null, stima indicativa
+ * @param agencyFeePct     percentuale di commissione dell'agenzia immobiliare (esclusa IVA), se preferisci
+ *                         indicarla in percentuale anziché in euro; l'IVA al 22% viene aggiunta automaticamente.
+ *                         Ha priorità su {@code agencyFeeAmount} se entrambi sono valorizzati
+ * @param agencyFeeAmount  spese di agenzia immobiliare dichiarate in euro, importo finale già comprensivo di
+ *                         IVA (es. da preventivo dell'agenzia); usata solo se {@code agencyFeePct} è null.
+ *                         Se nessuno dei due è valorizzato, stima indicativa (~3% + IVA del valore immobile)
  * @param registrationTax  imposta di registro/IVA sull'acquisto dichiarata (es. da preventivo notarile);
  *                         se null, stima indicativa basata su {@code purchaseType} (approssimata sul
  *                         prezzo dichiarato, non sul valore catastale realmente usato per calcolarla)
@@ -27,6 +33,8 @@ import jakarta.validation.constraints.PositiveOrZero;
  *                         se valorizzato, verifica l'idoneità all'anticipazione per acquisto prima casa)
  * @param pensionFundBalance montante accumulato nel fondo pensione, per stimare l'anticipazione
  *                         potenziale (opzionale, usato solo se {@code pensionFundYears} è valorizzato)
+ * @param homeSale         dati della casa esistente da vendere, per stimare il capitale disponibile
+ *                         dalla vendita (opzionale; se null, questa fonte non viene considerata)
  */
 public record MortgageRequest(
         @NotNull(message = "propertyValue obbligatorio")
@@ -59,8 +67,11 @@ public record MortgageRequest(
         @PositiveOrZero(message = "appraisalFees deve essere >= 0")
         Double appraisalFees,
 
-        @PositiveOrZero(message = "agencyFees deve essere >= 0")
-        Double agencyFees,
+        @PositiveOrZero(message = "agencyFeePct deve essere >= 0")
+        Double agencyFeePct,
+
+        @PositiveOrZero(message = "agencyFeeAmount deve essere >= 0")
+        Double agencyFeeAmount,
 
         @PositiveOrZero(message = "registrationTax deve essere >= 0")
         Double registrationTax,
@@ -72,5 +83,8 @@ public record MortgageRequest(
         Integer pensionFundYears,
 
         @PositiveOrZero(message = "pensionFundBalance deve essere >= 0")
-        Double pensionFundBalance
+        Double pensionFundBalance,
+
+        @Valid
+        HomeSaleRequest homeSale
 ) {}

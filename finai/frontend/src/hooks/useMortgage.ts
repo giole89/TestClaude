@@ -11,6 +11,16 @@ export interface AmortizationYear {
 
 export type PurchaseType = 'PRIMA_CASA_PRIVATO' | 'PRIMA_CASA_COSTRUTTORE' | 'SECONDA_CASA_PRIVATO' | 'SECONDA_CASA_COSTRUTTORE'
 
+export interface HomeSaleInput {
+  saleValue: number
+  purchasePrice: number
+  yearsOwned: number
+  mainResidence?: boolean | null
+  residualMortgageBalance?: number | null
+  saleAgencyFees?: number | null
+  monthsUntilSale?: number | null
+}
+
 export interface MortgageInput {
   propertyValue: number
   loanAmount: number
@@ -21,11 +31,13 @@ export interface MortgageInput {
   notaryCosts?: number | null
   originationFees?: number | null
   appraisalFees?: number | null
-  agencyFees?: number | null
+  agencyFeePct?: number | null
+  agencyFeeAmount?: number | null
   registrationTax?: number | null
   liquidSavings?: number | null
   pensionFundYears?: number | null
   pensionFundBalance?: number | null
+  homeSale?: HomeSaleInput | null
 }
 
 export interface PensionFundAdvice {
@@ -41,6 +53,20 @@ export interface BudgetAdvice {
   source: string
   message: string
   amount: number | null
+}
+
+export interface HomeSaleAdvice {
+  capitalGain: number
+  capitalGainsTaxable: boolean
+  capitalGainsTax: number
+  capitalGainsNote: string
+  saleAgencyFees: number
+  saleAgencyFeesEstimated: boolean
+  residualMortgageBalance: number
+  netProceeds: number
+  monthsUntilSale: number | null
+  timingNote: string | null
+  summary: string
 }
 
 export interface MortgageSimulation {
@@ -69,6 +95,9 @@ export interface MortgageSimulation {
   appraisalFeesEstimated: boolean
   agencyFees: number
   agencyFeesEstimated: boolean
+  agencyFeesBase: number
+  agencyFeesIva: number
+  agencyFeeMode: 'PERCENTAGE' | 'AMOUNT'
   registrationTax: number
   registrationTaxEstimated: boolean
   registrationTaxNote: string
@@ -76,6 +105,8 @@ export interface MortgageSimulation {
   totalOutOfPocketCost: number
   availableLiquidSavings: number
   liquidSavingsSource: 'DECLARED' | 'PROFILE' | 'NONE'
+  homeSale: HomeSaleAdvice | null
+  totalAvailableCapital: number
   shortfall: number
   pensionFund: PensionFundAdvice | null
   budgetAdvice: BudgetAdvice[]
