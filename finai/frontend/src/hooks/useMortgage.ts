@@ -19,6 +19,7 @@ export interface HomeSaleInput {
   residualMortgageBalance?: number | null
   saleAgencyFees?: number | null
   monthsUntilSale?: number | null
+  mustFullyFundPurchase?: boolean | null
 }
 
 export interface MortgageInput {
@@ -67,6 +68,10 @@ export interface HomeSaleAdvice {
   monthsUntilSale: number | null
   timingNote: string | null
   summary: string
+  mustFullyFundPurchase: boolean
+  coversFullPurchase: boolean
+  fundingGapOrSurplus: number
+  fullFundingNote: string | null
 }
 
 export interface MaxLoanAdvice {

@@ -301,6 +301,7 @@ const CONTENT: Record<string, React.ReactNode> = {
         <li><strong>Un confronto sui tempi</strong>: se indichi tra quanti mesi prevedi di vendere, FINAI lo confronta con il tempo medio di vendita di un immobile in Italia (~6 mesi) e, se i tuoi tempi sono più stretti, suggerisce un margine di sicurezza, un mutuo ponte o un compromesso condizionato alla vendita.</li>
       </ul>
       <p>Il capitale netto positivo si somma alla liquidità dichiarata nella lista "Da dove attingere", riducendo il fabbisogno residuo del nuovo mutuo.</p>
+      <p>Se spunti <strong>"Questi soldi devono coprire tutto"</strong> — perché non hai altra liquidità di riserva e la vendita è la tua unica fonte di capitale — FINAI verifica con priorità se il capitale netto della vendita, da solo, copre l'intero costo non finanziato dal mutuo (capitale proprio + spese accessorie). Se non basta, mostra subito quanto manca e propone alternative concrete in ordine di praticità: rinegoziare il prezzo di vendita richiesto, ridurre le spese accessorie con più preventivi, valutare un mutuo più alto se resta sostenibile, posticipare il compromesso di acquisto finché non hai un'offerta di vendita adeguata, ed evitare di firmare impegni non condizionati al buon esito della vendita.</p>
       <h3>9. Quanto mutuo potresti richiedere</h3>
       <p>Una sezione calcola <strong>al contrario</strong>, dagli stessi dati già inseriti, quale importo di mutuo potresti ragionevolmente permetterti — utile per capire se stai chiedendo troppo (o se hai margine per chiedere di più):</p>
       <ul>
@@ -311,6 +312,8 @@ const CONTENT: Record<string, React.ReactNode> = {
       </ul>
       <h3>10. Rata più bassa o meno interessi? Confronto tra durate</h3>
       <p>Una tabella confronta lo stesso importo di mutuo simulato su un ventaglio di durate tipiche (10, 15, 20, 25, 30 anni, più quella che hai scelto): rata mensile, interessi totali, rapporto rata/reddito e sostenibilità per ciascuna. È il modo più diretto per vedere il classico compromesso — <strong>durata più lunga = rata più bassa ma interessi totali più alti</strong> — e scegliere in base al proprio budget, non solo alla rata mensile.</p>
+      <h3>11. Prospetto completo</h3>
+      <p>In cima al risultato trovi un riepilogo che riunisce tutti i numeri chiave in un unico colpo d'occhio: rata e sostenibilità, costo totale dell'intera operazione (prezzo + interessi + spese accessorie), quanto devi pagare oltre al mutuo, capitale disponibile complessivo, surplus o fabbisogno residuo, e il confronto tra il mutuo che hai simulato e il massimo consigliato. Sotto, una lista numerata raccoglie in ordine tutti i punti di attenzione emersi nella simulazione (LTV elevato, sostenibilità al limite, stress test, mutuo sopra il massimo consigliato, fondo pensione non ancora idoneo, vendita insufficiente, tempistica di vendita stretta) — così non devi cercarli card per card.</p>
     </div>
   ),
   finanziamenti: (

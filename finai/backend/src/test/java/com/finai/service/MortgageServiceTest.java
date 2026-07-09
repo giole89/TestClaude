@@ -373,7 +373,7 @@ class MortgageServiceTest {
     @Test
     @DisplayName("la plusvalenza da vendita di una casa posseduta da meno di 5 anni e non abitazione principale è tassata al 26%")
     void homeSaleCapitalGainsTaxableWhenRecentAndNotMainResidence() {
-        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 3, false, 0.0, 0.0, null);
+        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 3, false, 0.0, 0.0, null, null);
         MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
                 .purchaseType("PRIMA_CASA_PRIVATO")
                 .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
@@ -389,7 +389,7 @@ class MortgageServiceTest {
     @Test
     @DisplayName("la plusvalenza è esente se l'immobile è stato abitazione principale, anche se venduto prima di 5 anni")
     void homeSaleCapitalGainsExemptWhenMainResidence() {
-        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 2, true, 0.0, 0.0, null);
+        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 2, true, 0.0, 0.0, null, null);
         MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
                 .purchaseType("PRIMA_CASA_PRIVATO")
                 .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
@@ -403,7 +403,7 @@ class MortgageServiceTest {
     @Test
     @DisplayName("la plusvalenza è esente dopo 5 anni di possesso, anche senza abitazione principale")
     void homeSaleCapitalGainsExemptAfterFiveYears() {
-        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 6, false, 0.0, 0.0, null);
+        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 6, false, 0.0, 0.0, null, null);
         MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
                 .purchaseType("PRIMA_CASA_PRIVATO")
                 .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
@@ -416,7 +416,7 @@ class MortgageServiceTest {
     @Test
     @DisplayName("il capitale netto dalla vendita sottrae mutuo residuo e spese di agenzia, e riduce il fabbisogno del mutuo")
     void homeSaleNetProceedsReduceShortfall() {
-        HomeSaleRequest sale = new HomeSaleRequest(200_000.0, 150_000.0, 10, true, 50_000.0, 5_000.0, null);
+        HomeSaleRequest sale = new HomeSaleRequest(200_000.0, 150_000.0, 10, true, 50_000.0, 5_000.0, null, null);
         MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
                 .purchaseType("PRIMA_CASA_PRIVATO")
                 .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
@@ -433,7 +433,7 @@ class MortgageServiceTest {
     @Test
     @DisplayName("se mutuo residuo e spese superano il valore di vendita, la vendita non libera capitale e lo segnala")
     void homeSaleNegativeNetProceedsIsFlagged() {
-        HomeSaleRequest sale = new HomeSaleRequest(100_000.0, 90_000.0, 10, true, 110_000.0, 0.0, null);
+        HomeSaleRequest sale = new HomeSaleRequest(100_000.0, 90_000.0, 10, true, 110_000.0, 0.0, null, null);
         MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
                 .purchaseType("PRIMA_CASA_PRIVATO")
                 .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
@@ -448,7 +448,7 @@ class MortgageServiceTest {
     @Test
     @DisplayName("se i tempi di vendita previsti sono più corti della media, segnala il rischio di tempistica")
     void homeSaleTimingNoteWarnsWhenFasterThanAverage() {
-        HomeSaleRequest sale = new HomeSaleRequest(200_000.0, 150_000.0, 10, true, 0.0, 0.0, 2);
+        HomeSaleRequest sale = new HomeSaleRequest(200_000.0, 150_000.0, 10, true, 0.0, 0.0, 2, null);
         MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
                 .purchaseType("PRIMA_CASA_PRIVATO")
                 .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
@@ -571,5 +571,60 @@ class MortgageServiceTest {
         List<Integer> years = result.durationComparison().stream().map(d -> d.years()).toList();
         assertThat(years).containsExactly(10, 15, 20, 25, 30);
         assertThat(result.durationComparison().stream().filter(d -> d.years() == 20).findFirst().orElseThrow().isSelected()).isTrue();
+    }
+
+    @Test
+    @DisplayName("quando il capitale netto della vendita copre da solo anticipo e spese, coversFullPurchase è true e non genera avvisi extra")
+    void homeSaleSufficientWhenMustFullyFund() {
+        // netProceeds = 300.000 - 0 (agenzia) - 0 (residuo) - 0 (esente, abitazione principale) = 300.000
+        // totalOutOfPocketCost = downPayment(200.000-150.000=50.000) + costi accessori (0) = 50.000 → ampiamente coperto
+        HomeSaleRequest sale = new HomeSaleRequest(300_000.0, 200_000.0, 10, true, 0.0, 0.0, null, true);
+        MortgageRequest req = Req.of(200_000.0, 150_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.homeSale().mustFullyFundPurchase()).isTrue();
+        assertThat(result.homeSale().coversFullPurchase()).isTrue();
+        assertThat(result.homeSale().fundingGapOrSurplus()).isGreaterThan(0);
+        assertThat(result.homeSale().fullFundingNote()).isNull();
+        assertThat(result.budgetAdvice().stream().noneMatch(a -> a.source().contains("Vendita insufficiente"))).isTrue();
+    }
+
+    @Test
+    @DisplayName("quando il capitale netto della vendita non basta da solo, coversFullPurchase è false e genera un avviso con alternative concrete")
+    void homeSaleInsufficientWhenMustFullyFund() {
+        // netProceeds = 120.000 - 0 - 0 - 0 = 120.000; totalOutOfPocketCost = downPayment(200.000-150.000=50.000) + 0 = 50.000
+        // Per rendere il fabbisogno più alto del netProceeds, usiamo un mutuo molto più basso: downPayment enorme.
+        HomeSaleRequest sale = new HomeSaleRequest(120_000.0, 100_000.0, 10, true, 0.0, 0.0, null, true);
+        MortgageRequest req = Req.of(200_000.0, 20_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        // totalOutOfPocketCost = downPayment (200.000-20.000=180.000) + 0 costi = 180.000 > netProceeds 120.000
+        assertThat(result.homeSale().mustFullyFundPurchase()).isTrue();
+        assertThat(result.homeSale().coversFullPurchase()).isFalse();
+        assertThat(result.homeSale().fundingGapOrSurplus()).isLessThan(0);
+        assertThat(result.homeSale().fullFundingNote()).isNotNull().contains("unica fonte di capitale");
+        assertThat(result.budgetAdvice().stream().anyMatch(a -> a.source().contains("Vendita insufficiente"))).isTrue();
+    }
+
+    @Test
+    @DisplayName("senza il flag mustFullyFundPurchase, anche se il capitale netto non basta non viene generato l'avviso dedicato")
+    void noFullFundingNoteWhenFlagNotSet() {
+        HomeSaleRequest sale = new HomeSaleRequest(120_000.0, 100_000.0, 10, true, 0.0, 0.0, null, false);
+        MortgageRequest req = Req.of(200_000.0, 20_000.0, 0.0, 10).income(3000.0)
+                .purchaseType("PRIMA_CASA_PRIVATO")
+                .notary(0.0).origination(0.0).appraisal(0.0).agencyAmount(0.0).registrationTax(0.0)
+                .homeSale(sale).build();
+        MortgageSimulationDto result = service.simulateMortgage(req);
+
+        assertThat(result.homeSale().mustFullyFundPurchase()).isFalse();
+        assertThat(result.homeSale().coversFullPurchase()).isFalse();
+        assertThat(result.homeSale().fullFundingNote()).isNull();
+        assertThat(result.budgetAdvice().stream().noneMatch(a -> a.source().contains("Vendita insufficiente"))).isTrue();
     }
 }

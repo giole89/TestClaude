@@ -15,6 +15,11 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param residualMortgageBalance mutuo/finanziamento residuo da estinguere sulla casa venduta, se presente
  * @param saleAgencyFees  spese di agenzia per la vendita; se null, stima indicativa (~3% + IVA del valore di vendita)
  * @param monthsUntilSale  tra quanti mesi prevedi di completare la vendita (opzionale, per una nota sui tempi)
+ * @param mustFullyFundPurchase true se il capitale netto di questa vendita è l'unica fonte su cui puoi contare e
+ *                        deve coprire da solo capitale proprio (anticipo) e tutte le spese accessorie del nuovo
+ *                        acquisto, senza altra liquidità di riserva: se il capitale netto non basta, FINAI lo
+ *                        segnala con priorità e propone alternative concrete invece di dare per scontato un
+ *                        margine di sicurezza che non hai
  */
 public record HomeSaleRequest(
         @NotNull(message = "saleValue obbligatorio")
@@ -38,5 +43,7 @@ public record HomeSaleRequest(
         Double saleAgencyFees,
 
         @PositiveOrZero(message = "monthsUntilSale deve essere >= 0")
-        Integer monthsUntilSale
+        Integer monthsUntilSale,
+
+        Boolean mustFullyFundPurchase
 ) {}

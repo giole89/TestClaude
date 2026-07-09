@@ -136,6 +136,22 @@ function HomeSaleCard({ sale }: { sale: HomeSaleAdvice }) {
       {sale.timingNote && (
         <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--acc3)', lineHeight: 1.4, marginTop: 6 }}>⏱ {sale.timingNote}</div>
       )}
+
+      {sale.mustFullyFundPurchase && (
+        <div style={{
+          marginTop: 10, padding: '8px 10px', borderRadius: 8,
+          background: sale.coversFullPurchase ? 'rgba(110,231,183,0.12)' : 'rgba(239,68,68,0.15)',
+          border: `1px solid ${sale.coversFullPurchase ? 'var(--acc)' : 'var(--red)'}`,
+        }}>
+          <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: sale.coversFullPurchase ? 'var(--acc)' : 'var(--red)', marginBottom: 4 }}>
+            {sale.coversFullPurchase ? '✅ Copre anticipo + spese' : '⚠ Non copre anticipo + spese'}
+            {' — '}{sale.fundingGapOrSurplus >= 0 ? 'surplus di' : 'mancano'} {formatNumber(Math.abs(sale.fundingGapOrSurplus), 0)} €
+          </div>
+          {sale.fullFundingNote && (
+            <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--text)', lineHeight: 1.5 }}>{sale.fullFundingNote}</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -303,6 +319,108 @@ function DurationComparisonTable({ options }: { options: DurationOption[] }) {
   )
 }
 
+function FullOverviewCard({ result }: { result: MortgageSimulation }) {
+  const totalOperationCost = result.totalOutOfPocketCost + result.totalPaid
+  const capitalGapOrSurplus = result.totalAvailableCapital - result.totalOutOfPocketCost
+  const advice = result.maxLoanAdvice
+  const requestedOverMax = advice.requestedLoanAmount > advice.recommendedMaxLoan
+
+  const warnings = [
+    result.ltvWarning,
+    result.affordabilityWarning,
+    result.stressTestWarning,
+    requestedOverMax ? advice.requestedLoanNote : null,
+    result.pensionFund && !result.pensionFund.eligibleForHomePurchase ? result.pensionFund.note : null,
+    result.homeSale?.fullFundingNote ?? null,
+    result.homeSale?.timingNote ?? null,
+  ].filter((w): w is string => !!w)
+
+  return (
+    <div style={{ background: 'var(--s2)', border: '2px solid var(--acc)', borderRadius: 12, padding: '18px 20px', marginTop: 16 }}>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 4 }}>
+        📋 Prospetto completo
+      </div>
+      <div style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+        Tutti i numeri chiave dell'operazione in un unico colpo d'occhio.
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
+        <div style={{ background: 'var(--s3)', borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Rata mensile</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, color: 'var(--text)' }}>{formatNumber(result.monthlyPayment, 0)} €</div>
+          <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 10, color: affordabilityColor(result.affordabilityLabel), marginTop: 2 }}>
+            {result.affordabilityLabel} ({formatNumber(result.combinedPaymentToIncomeRatioPct, 1)}%)
+          </div>
+        </div>
+        <div style={{ background: 'var(--s3)', borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Costo totale operazione</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, color: 'var(--text)' }}>{formatNumber(totalOperationCost, 0)} €</div>
+          <div style={{ fontFamily: 'Syne', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>prezzo + interessi + spese accessorie</div>
+        </div>
+        <div style={{ background: 'var(--s3)', borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Da pagare oltre al mutuo</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, color: 'var(--text)' }}>{formatNumber(result.totalOutOfPocketCost, 0)} €</div>
+          <div style={{ fontFamily: 'Syne', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>capitale proprio + spese accessorie</div>
+        </div>
+        <div style={{ background: 'var(--s3)', borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Capitale disponibile</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, color: 'var(--text)' }}>{formatNumber(result.totalAvailableCapital, 0)} €</div>
+          <div style={{ fontFamily: 'Syne', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>liquidità + vendita netta</div>
+        </div>
+        <div style={{
+          background: capitalGapOrSurplus >= 0 ? 'rgba(110,231,183,0.1)' : 'rgba(239,68,68,0.1)',
+          border: `1px solid ${capitalGapOrSurplus >= 0 ? 'var(--acc)' : 'var(--red)'}`, borderRadius: 10, padding: '10px 12px',
+        }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>
+            {capitalGapOrSurplus >= 0 ? 'Surplus di capitale' : 'Fabbisogno residuo'}
+          </div>
+          <div style={{ fontFamily: 'Instrument Serif', fontSize: 16, color: capitalGapOrSurplus >= 0 ? 'var(--acc)' : 'var(--red)' }}>
+            {formatNumber(Math.abs(capitalGapOrSurplus), 0)} €
+          </div>
+        </div>
+        <div style={{ background: 'var(--s3)', borderRadius: 10, padding: '10px 12px' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Mutuo richiesto vs consigliato</div>
+          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: requestedOverMax ? 'var(--red)' : 'var(--text)' }}>
+            {formatNumber(advice.requestedLoanAmount, 0)} € / {formatNumber(advice.recommendedMaxLoan, 0)} €
+          </div>
+        </div>
+      </div>
+
+      {result.homeSale?.mustFullyFundPurchase && (
+        <div style={{
+          padding: '10px 12px', borderRadius: 8, marginBottom: 10,
+          background: result.homeSale.coversFullPurchase ? 'rgba(110,231,183,0.1)' : 'rgba(239,68,68,0.15)',
+          border: `1px solid ${result.homeSale.coversFullPurchase ? 'var(--acc)' : 'var(--red)'}`,
+          fontFamily: 'Syne', fontWeight: 700, fontSize: 12,
+          color: result.homeSale.coversFullPurchase ? 'var(--acc)' : 'var(--red)',
+        }}>
+          {result.homeSale.coversFullPurchase
+            ? '✅ La vendita, unica fonte dichiarata, copre interamente anticipo e spese.'
+            : '⚠ La vendita, unica fonte dichiarata, NON copre da sola anticipo e spese: vedi le alternative nella sezione "Casa da vendere".'}
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div>
+          <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 11, color: 'var(--muted2)', marginBottom: 6 }}>
+            Punti di attenzione, in ordine
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {warnings.map((w, i) => (
+              <div key={i} style={{
+                padding: '8px 10px', borderRadius: 8, background: 'var(--s3)',
+                fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)', lineHeight: 1.5,
+              }}>
+                {i + 1}. {w}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ResultCard({ result }: { result: MortgageSimulation }) {
   return (
     <div style={{ background: 'var(--s2)', border: '1px solid var(--acc)', borderRadius: 12, padding: '16px 20px', marginTop: 16 }}>
@@ -417,6 +535,7 @@ export function MortgageCalculator() {
   const [residualMortgageBalance, setResidualMortgageBalance] = useState('')
   const [saleAgencyFees, setSaleAgencyFees] = useState('')
   const [monthsUntilSale, setMonthsUntilSale] = useState('')
+  const [mustFullyFundPurchase, setMustFullyFundPurchase] = useState(false)
 
   useEffect(() => {
     if (incomeEstimate?.estimatedMonthlyIncome != null && monthlyNetIncome === '') {
@@ -475,6 +594,7 @@ export function MortgageCalculator() {
         residualMortgageBalance: optionalNumber(residualMortgageBalance),
         saleAgencyFees: optionalNumber(saleAgencyFees),
         monthsUntilSale: optionalInt(monthsUntilSale),
+        mustFullyFundPurchase,
       } : null,
     })
   }
@@ -614,6 +734,15 @@ export function MortgageCalculator() {
             <span style={labelStyle}>Tra quanti mesi prevedi di venderla</span>
             <input value={monthsUntilSale} onChange={e => setMonthsUntilSale(e.target.value)} type="number" placeholder="opzionale" style={inputStyle} />
           </label>
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: 8, gridColumn: '1 / -1',
+            padding: '8px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid var(--border)', cursor: 'pointer',
+          }}>
+            <input type="checkbox" checked={mustFullyFundPurchase} onChange={e => setMustFullyFundPurchase(e.target.checked)} style={{ marginTop: 2 }} />
+            <span style={{ fontFamily: 'Syne', fontSize: 12, color: 'var(--text)', lineHeight: 1.4 }}>
+              Questi soldi devono coprire <strong>tutto</strong> — capitale proprio (anticipo) + spese accessorie — perché non ho altra liquidità a disposizione
+            </span>
+          </label>
         </div>
       )}
 
@@ -637,6 +766,7 @@ export function MortgageCalculator() {
 
       {mortgageResult && (
         <>
+          <FullOverviewCard result={mortgageResult} />
           <ResultCard result={mortgageResult} />
           <MaxLoanAdviceCard advice={mortgageResult.maxLoanAdvice} />
           <DurationComparisonTable options={mortgageResult.durationComparison} />

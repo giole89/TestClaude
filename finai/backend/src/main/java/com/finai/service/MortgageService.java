@@ -125,7 +125,7 @@ public class MortgageService {
         double totalOutOfPocketCost = downPayment + totalAncillaryCosts;
 
         LiquidSavingsContext liquidSavings = resolveLiquidSavings(req.liquidSavings());
-        HomeSaleAdviceDto homeSale = homeSaleAdvice(req.homeSale());
+        HomeSaleAdviceDto homeSale = homeSaleAdvice(req.homeSale(), totalOutOfPocketCost);
         double netSaleProceeds = homeSale != null ? homeSale.netProceeds() : 0.0;
         double totalAvailableCapital = liquidSavings.amount() + Math.max(0, netSaleProceeds);
         double shortfall = Math.max(0, totalOutOfPocketCost - totalAvailableCapital);
@@ -393,7 +393,7 @@ public class MortgageService {
      * l'immobile è posseduto da meno di 5 anni e non è stato abitazione principale per la maggior parte del
      * periodo di possesso; altrimenti è sempre esente.
      */
-    private HomeSaleAdviceDto homeSaleAdvice(HomeSaleRequest req) {
+    private HomeSaleAdviceDto homeSaleAdvice(HomeSaleRequest req, double totalOutOfPocketCost) {
         if (req == null) return null;
 
         double capitalGain = Math.max(0, req.saleValue() - req.purchasePrice());
@@ -444,11 +444,29 @@ public class MortgageService {
                     "Attenzione: dopo spese di agenzia%s%s, la vendita non libererebbe capitale — mancherebbero ancora circa %.0f €.",
                     residual > 0 ? ", estinzione del mutuo residuo" : "", taxable ? " e imposta sulla plusvalenza" : "", Math.abs(netProceeds));
 
+        boolean mustFullyFund = Boolean.TRUE.equals(req.mustFullyFundPurchase());
+        double fundingGapOrSurplus = netProceeds - totalOutOfPocketCost;
+        boolean coversFullPurchase = fundingGapOrSurplus >= 0;
+
+        String fullFundingNote = null;
+        if (mustFullyFund && !coversFullPurchase) {
+            fullFundingNote = String.format(Locale.ITALIAN,
+                    "Hai indicato che questa vendita è la tua unica fonte di capitale e deve coprire da sola capitale proprio e "
+                    + "spese accessorie: al netto, mancherebbero ancora circa %.0f €. Valuta in ordine di praticità: rinegoziare "
+                    + "verso l'alto il prezzo di vendita richiesto; ridurre le spese accessorie del nuovo acquisto (più preventivi "
+                    + "per notaio e agenzia, o una perizia meno costosa); verificare se il mutuo può coprire una quota più alta "
+                    + "restando entro un rapporto rata/reddito sostenibile; posticipare il compromesso di acquisto finché non hai "
+                    + "un'offerta di vendita concreta per l'importo necessario; evitare di firmare un compromesso non condizionato "
+                    + "al buon esito della vendita, per non rischiare penali se la vendita andasse storta o rendesse meno del previsto.",
+                    Math.abs(fundingGapOrSurplus));
+        }
+
         return new HomeSaleAdviceDto(
                 round(capitalGain), taxable, round(tax), capitalGainsNote,
                 round(saleAgency.amount()), saleAgency.estimated(),
                 round(residual), round(netProceeds),
-                req.monthsUntilSale(), timingNote, summary);
+                req.monthsUntilSale(), timingNote, summary,
+                mustFullyFund, coversFullPurchase, round(fundingGapOrSurplus), fullFundingNote);
     }
 
     /** Elenco ordinato di fonti a cui attingere per coprire capitale proprio e spese accessorie non finanziate dal mutuo. */
@@ -473,6 +491,10 @@ public class MortgageService {
                         round(used)));
             } else {
                 advice.add(new BudgetAdviceDto("Vendita immobile esistente", homeSale.summary(), 0.0));
+            }
+
+            if (homeSale.fullFundingNote() != null) {
+                advice.add(new BudgetAdviceDto("⚠ Vendita insufficiente: cosa fare", homeSale.fullFundingNote(), null));
             }
         }
 

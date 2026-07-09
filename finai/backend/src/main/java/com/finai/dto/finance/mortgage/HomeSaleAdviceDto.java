@@ -17,6 +17,14 @@ package com.finai.dto.finance.mortgage;
  * @param monthsUntilSale       mesi dichiarati fino al completamento della vendita, se indicati
  * @param timingNote            nota sul confronto tra i tempi previsti e i tempi medi di vendita in Italia; null se non applicabile
  * @param summary               riepilogo testuale del risultato
+ * @param mustFullyFundPurchase true se questa vendita è stata dichiarata come unica fonte di capitale, che deve
+ *                              coprire da sola capitale proprio e spese accessorie del nuovo acquisto
+ * @param coversFullPurchase    true se il capitale netto di questa vendita, da solo, copre l'intero costo non
+ *                              finanziato dal mutuo (capitale proprio + spese accessorie)
+ * @param fundingGapOrSurplus   {@code netProceeds - totalOutOfPocketCost}: positivo se la vendita basta e avanza,
+ *                              negativo se manca capitale anche considerando solo questa fonte
+ * @param fullFundingNote       avviso con priorità e alternative concrete se {@code mustFullyFundPurchase} è vero
+ *                              e il capitale netto non basta da solo; null altrimenti
  */
 public record HomeSaleAdviceDto(
         Double capitalGain,
@@ -29,5 +37,9 @@ public record HomeSaleAdviceDto(
         Double netProceeds,
         Integer monthsUntilSale,
         String timingNote,
-        String summary
+        String summary,
+        boolean mustFullyFundPurchase,
+        boolean coversFullPurchase,
+        Double fundingGapOrSurplus,
+        String fullFundingNote
 ) {}
