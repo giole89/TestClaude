@@ -4,6 +4,7 @@ import com.finai.domain.entity.BankTransaction;
 import com.finai.domain.entity.FixedExpense;
 import com.finai.domain.entity.InvestorProfile;
 import com.finai.dto.finance.*;
+import com.finai.dto.finance.mortgage.*;
 import com.finai.exception.FinaiException;
 import com.finai.repository.BankTransactionRepository;
 import com.finai.repository.FixedExpenseRepository;
@@ -38,6 +39,7 @@ public class FinanceService {
     private final SpendingInsightsService   insightsService;
     private final InvestmentAdvisorService  advisorService;
     private final PortfolioBuilderService   portfolioBuilder;
+    private final MortgageService           mortgageService;
 
     public FinanceService(BankTransactionRepository transactionRepo,
                           FixedExpenseRepository fixedExpenseRepo,
@@ -47,7 +49,8 @@ public class FinanceService {
                           BudgetService budgetService,
                           SpendingInsightsService insightsService,
                           InvestmentAdvisorService advisorService,
-                          PortfolioBuilderService portfolioBuilder) {
+                          PortfolioBuilderService portfolioBuilder,
+                          MortgageService mortgageService) {
         this.transactionRepo = transactionRepo;
         this.fixedExpenseRepo = fixedExpenseRepo;
         this.profileRepo = profileRepo;
@@ -57,6 +60,7 @@ public class FinanceService {
         this.insightsService = insightsService;
         this.advisorService = advisorService;
         this.portfolioBuilder = portfolioBuilder;
+        this.mortgageService = mortgageService;
     }
 
     // ─────────────────────────────────── Estratti conto ──────────────────────
@@ -287,6 +291,20 @@ public class FinanceService {
                 + "quota disponibile, perché equivale a un rendimento garantito pari al tasso di interesse evitato — superiore "
                 + "al rendimento atteso della maggior parte degli investimenti, e senza alcun rischio di mercato.",
                 debts.size(), names, maxRate, totalMonthly);
+    }
+
+    // ─────────────────────────────────── Mutuo / Finanziamenti ────────────────
+
+    public IncomeEstimateDto getIncomeEstimate() {
+        return mortgageService.getIncomeEstimate();
+    }
+
+    public MortgageSimulationDto simulateMortgage(MortgageRequest req) {
+        return mortgageService.simulateMortgage(req);
+    }
+
+    public LoanSimulationDto simulateLoan(LoanRequest req) {
+        return mortgageService.simulateLoan(req);
     }
 
     private InvestorProfile loadProfile() {

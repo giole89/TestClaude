@@ -37,6 +37,7 @@ FINAI è composta da **14 sezioni** accessibili tramite la barra di navigazione 
 | **Portafoglio** | 💼 | Tracker P&L personale, benchmark vs S&P 500, dividendi, gain fiscale 26%, DCA simulator, correlazione, news |
 | **Simulazione** | 🧪 | Paper trading con moneta virtuale (100.000€): acquisto/vendita titoli reali a prezzi live, P&L realizzato/non realizzato, storico operazioni |
 | **Finanza Personale** | 💰 | Import estratto conto (PDF/Excel) con categorizzazione automatica, spese fisse, budget previsionale mese successivo, questionario investitore |
+| **Mutuo e Finanziamenti** | 🏠 | Calcolatore mutuo (rata, LTV, rapporto rata/reddito, stress test tassi, spese accessorie) e calcolatore finanziamento/prestito personale, con piano di ammortamento |
 | **Suggeriti** | 🎯 | 4 portafogli modello (Conservativo/Bilanciato/Crescita/Aggressivo) con allocazioni e metriche attese |
 | **IPO** | 🏛️ | Monitoraggio IPO: calendario prossime quotazioni (NASDAQ), performance IPO recenti, watchlist con tracker lock-up |
 | **Screener** | 🔍 | Screener azionario su ~85 ticker chiave con filtri P/E, dividend yield, YTD, mercato |
@@ -77,6 +78,14 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
 - **Controlli pre-investimento**: prima di consigliare di investire la quota disponibile, segnala se il fondo di emergenza (liquidità ≥ 3 mesi di spese) non è ancora adeguato o se tra le spese fisse c'è un debito ad alto interesse (≥ 6%/anno) da estinguere con priorità
 - **Suggerimento PAC**: la quota investibile è un risparmio mensile ricorrente, non una somma unica: il consiglio propone un piano di accumulo (dollar-cost averaging) invece di un investimento in un'unica soluzione
 - **Simulatore (paper trading)**: wallet virtuale da 100.000€, acquisti/vendite ai prezzi live di Yahoo Finance, calcolo P&L realizzato e non realizzato, reset in qualsiasi momento
+
+### Mutuo e Finanziamenti (v3.1)
+- **Calcolatore mutuo**: da importo immobile, importo richiesto, tasso annuo (TAN) e anni, calcola la rata con piano di ammortamento **alla francese** (rata costante), il costo totale e gli interessi totali
+- **LTV (Loan-to-Value)**: rapporto mutuo/valore immobile, con avviso se supera l'80% tipico dei mutui fondiari italiani
+- **Rapporto rata/reddito complessivo**: somma la nuova rata alle rate di eventuali altri debiti/finanziamenti già tra le spese fisse (quelli con un tasso di interesse dichiarato), non solo la rata isolata; reddito netto mensile dichiarabile manualmente o stimato automaticamente dal budget; classificazione **Sostenibile** (≤30%) / **Al limite** (30-35%) / **Rischioso** (>35%)
+- **Stress test tassi**: simula un rialzo di 2 punti percentuali (rilevante per mutui a tasso variabile) e segnala se la sostenibilità verrebbe compromessa
+- **Spese accessorie stimate**: stima indicativa di notaio, imposte, perizia e istruttoria come % del valore dell'immobile
+- **Calcolatore finanziamento/prestito personale**: stesso motore di calcolo (durata in mesi), senza LTV né spese accessorie, per prestiti personali o cessioni del quinto
 
 ---
 
@@ -311,7 +320,7 @@ finai/
 │       │   │   │   ├── EarningsController.java    # GET /?tickers=
 │       │   │   │   ├── NewsController.java        # GET /?tickers=&count=
 │       │   │   │   ├── SimulatorController.java   # wallet/summary/trades + buy/sell/reset
-│       │   │   │   ├── FinanceController.java     # estratti conto, spese fisse, budget, questionario
+│       │   │   │   ├── FinanceController.java     # estratti conto, spese fisse, budget, questionario, mutuo/finanziamenti
 │       │   │   │   ├── AiController.java          # POST /chat SSE (thread virtuali)
 │       │   │   │   └── HealthController.java
 │       │   │   ├── domain/
@@ -347,6 +356,8 @@ finai/
 │       │   │   │   │             FixedExpenseDto, FixedExpenseRequest, BudgetDto, MonthlyExpensesDto,
 │       │   │   │   │             StatementUploadResultDto, DeleteCountDto, InvestorProfileDto,
 │       │   │   │   │             QuestionnaireRequest, RecommendationDto, AllocationDto
+│       │   │   │   ├── finance/mortgage/ MortgageRequest, MortgageSimulationDto, LoanRequest,
+│       │   │   │   │             LoanSimulationDto, AmortizationYearDto, IncomeEstimateDto
 │       │   │   │   ├── analytics/ (DTO condivisi metriche)
 │       │   │   │   └── ai/       ChatRequest, ChatMessage
 │       │   │   ├── exception/
@@ -386,7 +397,8 @@ finai/
 │       │   │       ├── StatementParserService.java # parsing PDF (PDFBox) ed Excel (Apache POI)
 │       │   │       ├── TransactionCategorizer.java # categorizzazione per keyword (14+5 categorie)
 │       │   │       ├── BudgetService.java         # budget previsionale mese successivo
-│       │   │       └── InvestmentAdvisorService.java # motore a regole goal+horizon → allocazione
+│       │   │       ├── InvestmentAdvisorService.java # motore a regole goal+horizon → allocazione
+│       │   │       └── MortgageService.java       # rata alla francese, LTV, rata/reddito, stress test
 │       │   └── resources/
 │       │       ├── application.yml               # Config principale
 │       │       ├── application-test.yml          # Override per test (PostgreSQL test DB)
@@ -420,7 +432,7 @@ finai/
     ├── index.html
     └── src/
         ├── main.tsx
-        ├── App.tsx               # QueryClientProvider + lazy tab router (14 tab)
+        ├── App.tsx               # QueryClientProvider + lazy tab router (15 tab)
         ├── styles.css
         ├── lib/
         │   ├── constants.ts      # STOCK_UNIVERSE (160+ ticker geografici), ETF, INDICES
@@ -442,21 +454,23 @@ finai/
         │   ├── useWatchlist.ts   # React Query CRUD watchlist
         │   ├── useScreener.ts
         │   ├── useSimulator.ts   # React Query wallet/summary/trades + buy/sell/reset
-        │   └── useFinance.ts     # React Query estratti, spese fisse, budget, questionario
+        │   ├── useFinance.ts     # React Query estratti, spese fisse, budget, questionario
+        │   └── useMortgage.ts    # React Query stima reddito + simulazione mutuo/finanziamento
         ├── components/
-        │   ├── layout/   Header, NavTabs (14 tab), PandaLoader
+        │   ├── layout/   Header, NavTabs (15 tab), PandaLoader
         │   ├── common/   SearchInput (autocomplete)
         │   ├── market/   IndexBar, SentimentMeter, MarketGrid, MarketRow
         │   ├── analyze/  StockHero, PriceChart, SignalBadge, PredictionCard
         │   ├── portfolio/ CorrelationHeatmap e altri widget portafoglio
         │   ├── finance/  StatementUpload, FixedExpensesManager, BudgetSummary,
         │   │             ExpensesPieChart, QuestionnaireWizard
+        │   ├── mortgage/ MortgageCalculator, LoanCalculator
         │   └── chat/     ChatPanel, ChatMessage
         └── pages/
             ├── MarketPage, AnalyzePage, ComparePage, AlertsPage
             ├── LongTermPage, PortfolioPage, IPOPage
             ├── SuggestedPage, ScreenerPage, WatchlistPage, MacroPage
-            ├── SimulatorPage, PersonalFinancePage, GuidePage
+            ├── SimulatorPage, PersonalFinancePage, MortgagePage, GuidePage
 ```
 
 ---
@@ -760,6 +774,16 @@ Tab supportate nel context: `analyze` | `compare` | `portfolio` | `longterm` | `
 > Il budget previsionale si basa sulla media degli ultimi mesi storici **completi** che contengono almeno un'entrata; se non ce n'è ancora nessuno (storico vuoto o solo movimenti isolati senza entrate), la stima ricade sul mese in corso e la risposta segnala `basedOnCurrentMonthOnly: true`.
 >
 > Il consiglio di investimento segnala `emergencyFundWarning` se la liquidità dichiarata copre meno di 3 mesi di spese, e `highInterestDebtWarning` se tra le spese fisse c'è un debito con tasso ≥ 6%/anno: in entrambi i casi, sistemare la propria situazione finanziaria di base ha priorità rispetto a investire la quota disponibile.
+
+### Mutuo e Finanziamenti
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `GET /api/finance/mortgage/income-estimate` | Reddito netto mensile stimato dal budget, per precompilare il calcolatore |
+| `POST /api/finance/mortgage/simulate` | Simula un mutuo (body: `{propertyValue, loanAmount, interestRatePct, years, monthlyNetIncome?}`) → rata, LTV, rapporto rata/reddito, stress test, piano di ammortamento |
+| `POST /api/finance/loan/simulate` | Simula un finanziamento/prestito personale (body: `{loanAmount, interestRatePct, months, monthlyNetIncome?}`) → rata, rapporto rata/reddito, piano di ammortamento |
+
+> Rata calcolata con piano di ammortamento **alla francese**: `R = C · i / (1 - (1+i)⁻ⁿ)`, con `i` tasso mensile e `n` numero di rate. Il rapporto rata/reddito è **complessivo**: somma la nuova rata alle rate di altri debiti già tra le spese fisse (quelli con `interestRatePct` valorizzato), non la rata isolata. Senza `monthlyNetIncome` dichiarato, viene usata la stima del budget (`incomeEstimated: true` nella risposta); se nessuna delle due è disponibile, l'endpoint risponde 422.
 
 ---
 

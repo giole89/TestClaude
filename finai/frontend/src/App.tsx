@@ -13,6 +13,7 @@ const LongTermPage = lazy(() => import('@/pages/LongTermPage').then(m => ({ defa
 const PortfolioPage = lazy(() => import('@/pages/PortfolioPage').then(m => ({ default: m.PortfolioPage })))
 const SimulatorPage = lazy(() => import('@/pages/SimulatorPage').then(m => ({ default: m.SimulatorPage })))
 const PersonalFinancePage = lazy(() => import('@/pages/PersonalFinancePage').then(m => ({ default: m.PersonalFinancePage })))
+const MortgagePage = lazy(() => import('@/pages/MortgagePage').then(m => ({ default: m.MortgagePage })))
 const SuggestedPage = lazy(() => import('@/pages/SuggestedPage').then(m => ({ default: m.SuggestedPage })))
 const IPOPage = lazy(() => import('@/pages/IPOPage').then(m => ({ default: m.IPOPage })))
 const GuidePage = lazy(() => import('@/pages/GuidePage').then(m => ({ default: m.GuidePage })))
@@ -44,6 +45,7 @@ function TabRouter() {
       {activeTab === 'portfolio' && <PortfolioPage />}
       {activeTab === 'simulator' && <SimulatorPage />}
       {activeTab === 'finance' && <PersonalFinancePage />}
+      {activeTab === 'mortgage' && <MortgagePage />}
       {activeTab === 'suggested' && <SuggestedPage />}
       {activeTab === 'ipo' && <IPOPage />}
       {activeTab === 'screener' && <ScreenerPage />}

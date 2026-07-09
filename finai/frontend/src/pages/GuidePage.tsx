@@ -11,6 +11,7 @@ const SECTIONS = [
   { id: 'dca', icon: '📅', title: 'Strategia DCA' },
   { id: 'portafoglio', icon: '🗂️', title: 'Costruire un Portafoglio' },
   { id: 'finanzapersonale', icon: '💰', title: 'Finanza Personale' },
+  { id: 'mutuo', icon: '🏠', title: 'Mutuo e Finanziamenti' },
   { id: 'simulazione', icon: '🧪', title: 'Simulazione' },
   { id: 'errori', icon: '🚫', title: 'Errori Comuni' },
   { id: 'finai', icon: '🚀', title: 'Come Usare FINAI' },
@@ -272,6 +273,22 @@ const CONTENT: Record<string, React.ReactNode> = {
       <p>Il consiglio è accompagnato da un portafoglio esempio in ETF UCITS reali ai prezzi di oggi. Il peso tra lo strumento "core" e quello "satellite" di ciascun bucket non è un fisso 70/30 o 60/40: viene calcolato risolvendo la formula del <strong>portafoglio tangente a due asset</strong> della Modern Portfolio Theory di Markowitz, usando rendimento, volatilità e <strong>correlazione</strong> tra i due strumenti su uno storico a 3 anni (più stabile di una finestra a 1 anno). Dato che la quota investibile è un risparmio che si ripete ogni mese e non una somma unica, il consiglio suggerisce sempre di investirla gradualmente con un <strong>Piano di Accumulo Capitale (PAC)</strong> piuttosto che in un'unica soluzione, per ridurre il rischio di investire tutto in un momento sfavorevole del mercato.</p>
     </div>
   ),
+  mutuo: (
+    <div>
+      <h2>🏠 Mutuo e Finanziamenti</h2>
+      <p>Una sezione dedicata per calcolare la rata di un mutuo o di un finanziamento/prestito personale e verificarne la sostenibilità rispetto al tuo reddito, con gli stessi criteri che una banca userebbe in fase di istruttoria.</p>
+      <h3>1. Calcolatore mutuo</h3>
+      <p>Inserisci <strong>importo dell'immobile</strong>, <strong>importo richiesto a mutuo</strong>, <strong>tasso di interesse annuo (TAN)</strong> ed <strong>anni a disposizione</strong>. FINAI calcola la rata mensile con il piano di ammortamento <strong>alla francese</strong> (rata costante, standard dei mutui italiani: la quota interessi è più alta all'inizio e diminuisce nel tempo a favore della quota capitale) e mostra il piano anno per anno.</p>
+      <h3>2. Loan-to-Value (LTV)</h3>
+      <p>Il rapporto tra importo del mutuo e valore dell'immobile. Le banche italiane concedono in genere mutui fondiari fino all'<strong>80%</strong> del valore: oltre questa soglia FINAI mostra un avviso, perché in pratica comporta condizioni più severe (tassi più alti, garanzie aggiuntive).</p>
+      <h3>3. Rapporto rata/reddito</h3>
+      <p>Non guarda solo alla nuova rata isolata: viene sommata anche la rata di eventuali <strong>altri debiti/finanziamenti già segnalati tra le spese fisse</strong> (quelli con un tasso di interesse indicato), perché è il rapporto <strong>rata complessiva/reddito</strong> a determinare davvero la sostenibilità. Se non dichiari un reddito netto mensile, FINAI lo stima automaticamente dal budget (media delle entrate importate dagli estratti conto). Il risultato è classificato come <strong>Sostenibile</strong> (≤ 30%), <strong>Al limite</strong> (30-35%) o <strong>Rischioso</strong> (&gt; 35%), soglie in linea con la prassi bancaria.</p>
+      <h3>4. Stress test tassi</h3>
+      <p>Per il mutuo, FINAI simula anche cosa succederebbe con un rialzo di <strong>2 punti percentuali</strong> del tasso — scenario rilevante soprattutto per un mutuo a tasso variabile — mostrando se la rata risulterebbe ancora sostenibile o supererebbe la soglia consigliata.</p>
+      <h3>5. Spese accessorie e calcolatore finanziamento</h3>
+      <p>Per il mutuo viene mostrata anche una stima indicativa delle <strong>spese accessorie</strong> (notaio, imposte, perizia, istruttoria — da verificare sempre con notaio/banca). Il secondo calcolatore, per <strong>finanziamenti e prestiti personali</strong> (durata in mesi anziché anni), usa lo stesso motore di calcolo della rata e lo stesso rapporto rata/reddito complessivo, senza LTV né spese accessorie, che non si applicano a questo tipo di finanziamento.</p>
+    </div>
+  ),
   simulazione: (
     <div>
       <h2>🧪 Simulazione (Paper Trading)</h2>
@@ -318,6 +335,7 @@ const CONTENT: Record<string, React.ReactNode> = {
         ['💼 Portafoglio', 'Traccia il portafoglio con P&L in tempo reale. Include: dividendi, benchmark vs S&P 500, simulatore DCA, stima gain fiscale (26% italiano), matrice di correlazione e news aggiornate.'],
         ['🧪 Simulazione', 'Ambiente di paper trading con moneta virtuale: compra e vendi titoli reali ai prezzi live senza rischio, per studiare l\'andamento di un investimento prima di farlo davvero.'],
         ['💰 Finanza Personale', 'Importa l\'estratto conto (PDF/Excel) per categorizzare automaticamente le spese, inserisci i costi fissi mensili e ottieni il budget previsionale del mese successivo con la quota di risparmio investibile, suggerimenti di risparmio concreti e un consiglio di investimento (con portafoglio esempio, controllo del fondo di emergenza/debiti e suggerimento PAC) basato su un breve questionario.'],
+        ['🏠 Mutuo e Finanziamenti', 'Calcola la rata di un mutuo o di un finanziamento/prestito personale con piano di ammortamento alla francese: LTV, rapporto rata/reddito (comprensivo di altri debiti già tracciati), stress test tassi e spese accessorie stimate per il mutuo.'],
         ['🎯 Suggeriti', 'Portafogli modello pre-costruiti per 4 profili di rischio (Conservativo, Bilanciato, Crescita, Aggressivo). Chiedi all\'AI un portafoglio personalizzato.'],
         ['🌐 Macro', 'Dashboard macroeconomica: indici globali (S&P 500, Nasdaq, DAX…), valute, commodity, crypto (BTC, ETH) e tassi USA (10Y/30Y). Sentiment aggregato Risk On/Off.'],
         ['🔍 Screener', 'Filtra l\'universo di oltre 170 titoli per variazione giornaliera, YTD e posizione nel range 52 settimane. Trova opportunità rapidamente.'],

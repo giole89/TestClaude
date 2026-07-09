@@ -1,6 +1,7 @@
 package com.finai.controller;
 
 import com.finai.dto.finance.*;
+import com.finai.dto.finance.mortgage.*;
 import com.finai.exception.FinaiException;
 import com.finai.service.FinanceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -144,5 +145,25 @@ public class FinanceController {
     @Operation(summary = "Consiglio di investimento basato sull'ultimo questionario completato")
     public ResponseEntity<RecommendationDto> recommendation() {
         return ResponseEntity.ok(service.getRecommendation());
+    }
+
+    // ─────────────────────────────────── Mutuo / Finanziamenti ────────────────
+
+    @GetMapping("/mortgage/income-estimate")
+    @Operation(summary = "Reddito netto mensile stimato dal budget, per precompilare il calcolatore mutuo/finanziamento")
+    public ResponseEntity<IncomeEstimateDto> mortgageIncomeEstimate() {
+        return ResponseEntity.ok(service.getIncomeEstimate());
+    }
+
+    @PostMapping("/mortgage/simulate")
+    @Operation(summary = "Simula un mutuo: rata, LTV, rapporto rata/reddito complessivo e stress test tassi")
+    public ResponseEntity<MortgageSimulationDto> simulateMortgage(@Valid @RequestBody MortgageRequest req) {
+        return ResponseEntity.ok(service.simulateMortgage(req));
+    }
+
+    @PostMapping("/loan/simulate")
+    @Operation(summary = "Simula un finanziamento/prestito personale: rata, costo totale e rapporto rata/reddito complessivo")
+    public ResponseEntity<LoanSimulationDto> simulateLoan(@Valid @RequestBody LoanRequest req) {
+        return ResponseEntity.ok(service.simulateLoan(req));
     }
 }
