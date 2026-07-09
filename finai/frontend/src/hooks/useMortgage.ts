@@ -9,12 +9,38 @@ export interface AmortizationYear {
   remainingBalance: number
 }
 
+export type PurchaseType = 'PRIMA_CASA_PRIVATO' | 'PRIMA_CASA_COSTRUTTORE' | 'SECONDA_CASA_PRIVATO' | 'SECONDA_CASA_COSTRUTTORE'
+
 export interface MortgageInput {
   propertyValue: number
   loanAmount: number
   interestRatePct: number
   years: number
   monthlyNetIncome?: number | null
+  purchaseType?: PurchaseType | null
+  notaryCosts?: number | null
+  originationFees?: number | null
+  appraisalFees?: number | null
+  agencyFees?: number | null
+  registrationTax?: number | null
+  liquidSavings?: number | null
+  pensionFundYears?: number | null
+  pensionFundBalance?: number | null
+}
+
+export interface PensionFundAdvice {
+  yearsEnrolled: number
+  eligibleForHomePurchase: boolean
+  yearsUntilEligible: number
+  maxAnticipationPct: number | null
+  estimatedMaxAnticipation: number | null
+  note: string
+}
+
+export interface BudgetAdvice {
+  source: string
+  message: string
+  amount: number | null
 }
 
 export interface MortgageSimulation {
@@ -34,7 +60,25 @@ export interface MortgageSimulation {
   stressTestMonthlyPayment: number
   stressTestCombinedRatioPct: number
   stressTestWarning: string | null
-  estimatedAncillaryCosts: number
+  downPayment: number
+  notaryCosts: number
+  notaryCostsEstimated: boolean
+  originationFees: number
+  originationFeesEstimated: boolean
+  appraisalFees: number
+  appraisalFeesEstimated: boolean
+  agencyFees: number
+  agencyFeesEstimated: boolean
+  registrationTax: number
+  registrationTaxEstimated: boolean
+  registrationTaxNote: string
+  totalAncillaryCosts: number
+  totalOutOfPocketCost: number
+  availableLiquidSavings: number
+  liquidSavingsSource: 'DECLARED' | 'PROFILE' | 'NONE'
+  shortfall: number
+  pensionFund: PensionFundAdvice | null
+  budgetAdvice: BudgetAdvice[]
   schedule: AmortizationYear[]
 }
 

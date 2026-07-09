@@ -11,7 +11,8 @@ const SECTIONS = [
   { id: 'dca', icon: '📅', title: 'Strategia DCA' },
   { id: 'portafoglio', icon: '🗂️', title: 'Costruire un Portafoglio' },
   { id: 'finanzapersonale', icon: '💰', title: 'Finanza Personale' },
-  { id: 'mutuo', icon: '🏠', title: 'Mutuo e Finanziamenti' },
+  { id: 'mutuo', icon: '🏠', title: 'Mutui' },
+  { id: 'finanziamenti', icon: '💳', title: 'Finanziamenti' },
   { id: 'simulazione', icon: '🧪', title: 'Simulazione' },
   { id: 'errori', icon: '🚫', title: 'Errori Comuni' },
   { id: 'finai', icon: '🚀', title: 'Come Usare FINAI' },
@@ -275,8 +276,8 @@ const CONTENT: Record<string, React.ReactNode> = {
   ),
   mutuo: (
     <div>
-      <h2>🏠 Mutuo e Finanziamenti</h2>
-      <p>Una sezione dedicata per calcolare la rata di un mutuo o di un finanziamento/prestito personale e verificarne la sostenibilità rispetto al tuo reddito, con gli stessi criteri che una banca userebbe in fase di istruttoria.</p>
+      <h2>🏠 Mutui</h2>
+      <p>Sezione dedicata all'acquisto di una casa: calcola la rata del mutuo, tutto ciò che <strong>non</strong> è coperto dal mutuo (capitale proprio e spese accessorie) e a quali fonti attingere per coprirlo, con gli stessi criteri che una banca userebbe in fase di istruttoria.</p>
       <h3>1. Calcolatore mutuo</h3>
       <p>Inserisci <strong>importo dell'immobile</strong>, <strong>importo richiesto a mutuo</strong>, <strong>tasso di interesse annuo (TAN)</strong> ed <strong>anni a disposizione</strong>. FINAI calcola la rata mensile con il piano di ammortamento <strong>alla francese</strong> (rata costante, standard dei mutui italiani: la quota interessi è più alta all'inizio e diminuisce nel tempo a favore della quota capitale) e mostra il piano anno per anno.</p>
       <h3>2. Loan-to-Value (LTV)</h3>
@@ -284,9 +285,21 @@ const CONTENT: Record<string, React.ReactNode> = {
       <h3>3. Rapporto rata/reddito</h3>
       <p>Non guarda solo alla nuova rata isolata: viene sommata anche la rata di eventuali <strong>altri debiti/finanziamenti già segnalati tra le spese fisse</strong> (quelli con un tasso di interesse indicato), perché è il rapporto <strong>rata complessiva/reddito</strong> a determinare davvero la sostenibilità. Se non dichiari un reddito netto mensile, FINAI lo stima automaticamente dal budget (media delle entrate importate dagli estratti conto). Il risultato è classificato come <strong>Sostenibile</strong> (≤ 30%), <strong>Al limite</strong> (30-35%) o <strong>Rischioso</strong> (&gt; 35%), soglie in linea con la prassi bancaria.</p>
       <h3>4. Stress test tassi</h3>
-      <p>Per il mutuo, FINAI simula anche cosa succederebbe con un rialzo di <strong>2 punti percentuali</strong> del tasso — scenario rilevante soprattutto per un mutuo a tasso variabile — mostrando se la rata risulterebbe ancora sostenibile o supererebbe la soglia consigliata.</p>
-      <h3>5. Spese accessorie e calcolatore finanziamento</h3>
-      <p>Per il mutuo viene mostrata anche una stima indicativa delle <strong>spese accessorie</strong> (notaio, imposte, perizia, istruttoria — da verificare sempre con notaio/banca). Il secondo calcolatore, per <strong>finanziamenti e prestiti personali</strong> (durata in mesi anziché anni), usa lo stesso motore di calcolo della rata e lo stesso rapporto rata/reddito complessivo, senza LTV né spese accessorie, che non si applicano a questo tipo di finanziamento.</p>
+      <p>FINAI simula anche cosa succederebbe con un rialzo di <strong>2 punti percentuali</strong> del tasso — scenario rilevante soprattutto per un mutuo a tasso variabile — mostrando se la rata risulterebbe ancora sostenibile o supererebbe la soglia consigliata.</p>
+      <h3>5. Tutto ciò che non rientra nel mutuo</h3>
+      <p>Oltre alla rata, comprare casa richiede di coprire di tasca propria il <strong>capitale proprio</strong> (differenza tra prezzo e mutuo) e le <strong>spese accessorie</strong>: notaio, istruttoria bancaria, perizia dell'immobile, agenzia immobiliare e imposta di registro/IVA. Puoi inserire gli importi reali (da un preventivo) o lasciare i campi vuoti: FINAI li stima (es. notaio ~2% dell'immobile, istruttoria ~0.5% del mutuo, perizia ~300€, agenzia ~3%+IVA). L'imposta di registro/IVA dipende dal tipo di acquisto che selezioni — <strong>prima casa</strong> (2% sul valore catastale, o 4% di IVA da costruttore) oppure <strong>seconda casa</strong> (9%, o 10% di IVA da costruttore): la stima usa il prezzo dichiarato come proxy del valore catastale, quindi è indicativa e spesso più alta del reale — verifica sempre la cifra esatta con il notaio.</p>
+      <h3>6. Da dove attingere</h3>
+      <p>FINAI confronta il totale da pagare oltre al mutuo con la tua <strong>liquidità disponibile</strong> (dichiarata qui o ripresa dal questionario di Finanza Personale) e mostra il <strong>fabbisogno residuo</strong> non coperto. Se dichiari gli <strong>anni di iscrizione al tuo fondo pensione complementare</strong>, FINAI verifica se puoi accedervi: la legge (D.Lgs. 252/2005) ammette un'<strong>anticipazione fino al 75% del montante</strong> per l'acquisto della prima casa (per te o per i tuoi figli), ma solo dopo almeno <strong>8 anni di iscrizione</strong> — con meno anni (es. 2) questa fonte non è ancora disponibile, e non lo è mai per la seconda casa. Se indichi anche il montante accumulato, FINAI stima l'importo anticipabile. Infine, se resta un fabbisogno scoperto, FINAI propone quanti mesi di risparmio servirebbero (in base alla quota investibile mensile del tuo budget) e altre opzioni pratiche (rinegoziare le spese accessorie, aumentare il mutuo se sostenibile, aiuto familiare, posticipare l'acquisto).</p>
+    </div>
+  ),
+  finanziamenti: (
+    <div>
+      <h2>💳 Finanziamenti</h2>
+      <p>Per prestiti personali, cessioni del quinto o altri finanziamenti (non legati all'acquisto di una casa): stesso motore di calcolo della rata dei mutui, senza LTV né spese accessorie, che non si applicano a questo tipo di finanziamento.</p>
+      <h3>1. Calcolatore finanziamento</h3>
+      <p>Inserisci <strong>importo del finanziamento</strong>, <strong>tasso di interesse annuo (TAN)</strong> e <strong>durata in mesi</strong>. FINAI calcola la rata con lo stesso piano di ammortamento <strong>alla francese</strong> usato per i mutui, e mostra il piano di ammortamento anno per anno.</p>
+      <h3>2. Rapporto rata/reddito</h3>
+      <p>Come per il mutuo, il rapporto è <strong>complessivo</strong>: somma la nuova rata a quella di eventuali altri debiti/finanziamenti già tra le spese fisse. Reddito dichiarabile o stimato dal budget; classificazione <strong>Sostenibile</strong> / <strong>Al limite</strong> / <strong>Rischioso</strong> con le stesse soglie del mutuo (30% / 35%).</p>
     </div>
   ),
   simulazione: (
@@ -335,7 +348,8 @@ const CONTENT: Record<string, React.ReactNode> = {
         ['💼 Portafoglio', 'Traccia il portafoglio con P&L in tempo reale. Include: dividendi, benchmark vs S&P 500, simulatore DCA, stima gain fiscale (26% italiano), matrice di correlazione e news aggiornate.'],
         ['🧪 Simulazione', 'Ambiente di paper trading con moneta virtuale: compra e vendi titoli reali ai prezzi live senza rischio, per studiare l\'andamento di un investimento prima di farlo davvero.'],
         ['💰 Finanza Personale', 'Importa l\'estratto conto (PDF/Excel) per categorizzare automaticamente le spese, inserisci i costi fissi mensili e ottieni il budget previsionale del mese successivo con la quota di risparmio investibile, suggerimenti di risparmio concreti e un consiglio di investimento (con portafoglio esempio, controllo del fondo di emergenza/debiti e suggerimento PAC) basato su un breve questionario.'],
-        ['🏠 Mutuo e Finanziamenti', 'Calcola la rata di un mutuo o di un finanziamento/prestito personale con piano di ammortamento alla francese: LTV, rapporto rata/reddito (comprensivo di altri debiti già tracciati), stress test tassi e spese accessorie stimate per il mutuo.'],
+        ['🏠 Mutui', 'Calcola la rata del mutuo per l\'acquisto di una casa: LTV, rapporto rata/reddito, stress test tassi, capitale proprio e spese accessorie (notaio, istruttoria, perizia, agenzia, imposte) e a quali fonti attingere per coprirle, incluso l\'eventuale fondo pensione.'],
+        ['💳 Finanziamenti', 'Calcola la rata di un finanziamento o prestito personale con piano di ammortamento alla francese e rapporto rata/reddito comprensivo di altri debiti già tracciati.'],
         ['🎯 Suggeriti', 'Portafogli modello pre-costruiti per 4 profili di rischio (Conservativo, Bilanciato, Crescita, Aggressivo). Chiedi all\'AI un portafoglio personalizzato.'],
         ['🌐 Macro', 'Dashboard macroeconomica: indici globali (S&P 500, Nasdaq, DAX…), valute, commodity, crypto (BTC, ETH) e tassi USA (10Y/30Y). Sentiment aggregato Risk On/Off.'],
         ['🔍 Screener', 'Filtra l\'universo di oltre 170 titoli per variazione giornaliera, YTD e posizione nel range 52 settimane. Trova opportunità rapidamente.'],

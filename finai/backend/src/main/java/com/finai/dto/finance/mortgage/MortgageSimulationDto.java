@@ -4,8 +4,9 @@ import java.util.List;
 
 /**
  * Esito della simulazione di un mutuo: rata, costo totale, indicatori di sostenibilità
- * (LTV, rapporto rata/reddito comprensivo dei debiti già in essere, stress test tassi) e
- * piano di ammortamento annuale.
+ * (LTV, rapporto rata/reddito comprensivo dei debiti già in essere, stress test tassi), il
+ * costo complessivo dell'acquisto non coperto dal mutuo (capitale proprio + spese accessorie)
+ * e a quali fonti attingere per coprirlo, piano di ammortamento annuale incluso.
  *
  * @param loanToValuePct         rapporto importo mutuo / valore immobile (LTV), in percentuale
  * @param ltvWarning             avviso se l'LTV supera la soglia tipica dei mutui fondiari italiani (80%); null altrimenti
@@ -20,7 +21,25 @@ import java.util.List;
  * @param stressTestMonthlyPayment rata mensile ricalcolata al tasso di stress
  * @param stressTestCombinedRatioPct rapporto rata+altri debiti / reddito al tasso di stress, in percentuale
  * @param stressTestWarning      avviso se lo stress test porta il rapporto oltre la soglia di sostenibilità; null altrimenti
- * @param estimatedAncillaryCosts stima indicativa di spese accessorie (notaio, imposte, perizia, istruttoria)
+ * @param downPayment            capitale proprio necessario: valore immobile meno importo mutuo
+ * @param notaryCosts            costi di notaio (dichiarati o stimati)
+ * @param notaryCostsEstimated   true se stimati (non dichiarati dall'utente)
+ * @param originationFees        spese di istruttoria bancaria (dichiarate o stimate)
+ * @param originationFeesEstimated true se stimate
+ * @param appraisalFees          spese di perizia dell'immobile (dichiarate o stimate)
+ * @param appraisalFeesEstimated true se stimate
+ * @param agencyFees             spese di agenzia immobiliare (dichiarate o stimate)
+ * @param agencyFeesEstimated    true se stimate
+ * @param registrationTax        imposta di registro/IVA sull'acquisto (dichiarata o stimata)
+ * @param registrationTaxEstimated true se stimata
+ * @param registrationTaxNote    nota sui limiti della stima dell'imposta (approssimata sul prezzo, non sul valore catastale)
+ * @param totalAncillaryCosts    somma di notaio + istruttoria + perizia + agenzia + imposta di registro/IVA
+ * @param totalOutOfPocketCost   tutto ciò che non rientra nel mutuo: capitale proprio + spese accessorie totali
+ * @param availableLiquidSavings liquidità disponibile per coprire il costo non finanziato (dichiarata o dal profilo investitore)
+ * @param liquidSavingsSource    "DECLARED" se dichiarata in questa simulazione, "PROFILE" se presa dal questionario investitore, "NONE" se non disponibile
+ * @param shortfall              fabbisogno residuo non coperto dalla liquidità disponibile (0 se la liquidità basta)
+ * @param pensionFund            idoneità e stima dell'anticipazione del fondo pensione; null se non dichiarati anni di iscrizione
+ * @param budgetAdvice           elenco ordinato di fonti a cui attingere per coprire il fabbisogno residuo
  */
 public record MortgageSimulationDto(
         Double monthlyPayment,
@@ -39,6 +58,24 @@ public record MortgageSimulationDto(
         Double stressTestMonthlyPayment,
         Double stressTestCombinedRatioPct,
         String stressTestWarning,
-        Double estimatedAncillaryCosts,
+        Double downPayment,
+        Double notaryCosts,
+        boolean notaryCostsEstimated,
+        Double originationFees,
+        boolean originationFeesEstimated,
+        Double appraisalFees,
+        boolean appraisalFeesEstimated,
+        Double agencyFees,
+        boolean agencyFeesEstimated,
+        Double registrationTax,
+        boolean registrationTaxEstimated,
+        String registrationTaxNote,
+        Double totalAncillaryCosts,
+        Double totalOutOfPocketCost,
+        Double availableLiquidSavings,
+        String liquidSavingsSource,
+        Double shortfall,
+        PensionFundAdviceDto pensionFund,
+        List<BudgetAdviceDto> budgetAdvice,
         List<AmortizationYearDto> schedule
 ) {}

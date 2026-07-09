@@ -37,7 +37,8 @@ FINAI è composta da **14 sezioni** accessibili tramite la barra di navigazione 
 | **Portafoglio** | 💼 | Tracker P&L personale, benchmark vs S&P 500, dividendi, gain fiscale 26%, DCA simulator, correlazione, news |
 | **Simulazione** | 🧪 | Paper trading con moneta virtuale (100.000€): acquisto/vendita titoli reali a prezzi live, P&L realizzato/non realizzato, storico operazioni |
 | **Finanza Personale** | 💰 | Import estratto conto (PDF/Excel) con categorizzazione automatica, spese fisse, budget previsionale mese successivo, questionario investitore |
-| **Mutuo e Finanziamenti** | 🏠 | Calcolatore mutuo (rata, LTV, rapporto rata/reddito, stress test tassi, spese accessorie) e calcolatore finanziamento/prestito personale, con piano di ammortamento |
+| **Mutui** | 🏠 | Calcolatore mutuo per l'acquisto di una casa: rata, LTV, rapporto rata/reddito, stress test tassi, capitale proprio e spese accessorie (notaio, istruttoria, perizia, agenzia, imposte), fonti a cui attingere (liquidità, fondo pensione, risparmio mensile) |
+| **Finanziamenti** | 💳 | Calcolatore finanziamento/prestito personale con piano di ammortamento e rapporto rata/reddito |
 | **Suggeriti** | 🎯 | 4 portafogli modello (Conservativo/Bilanciato/Crescita/Aggressivo) con allocazioni e metriche attese |
 | **IPO** | 🏛️ | Monitoraggio IPO: calendario prossime quotazioni (NASDAQ), performance IPO recenti, watchlist con tracker lock-up |
 | **Screener** | 🔍 | Screener azionario su ~85 ticker chiave con filtri P/E, dividend yield, YTD, mercato |
@@ -79,13 +80,16 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
 - **Suggerimento PAC**: la quota investibile è un risparmio mensile ricorrente, non una somma unica: il consiglio propone un piano di accumulo (dollar-cost averaging) invece di un investimento in un'unica soluzione
 - **Simulatore (paper trading)**: wallet virtuale da 100.000€, acquisti/vendite ai prezzi live di Yahoo Finance, calcolo P&L realizzato e non realizzato, reset in qualsiasi momento
 
-### Mutuo e Finanziamenti (v3.1)
+### Mutui (v3.1)
 - **Calcolatore mutuo**: da importo immobile, importo richiesto, tasso annuo (TAN) e anni, calcola la rata con piano di ammortamento **alla francese** (rata costante), il costo totale e gli interessi totali
 - **LTV (Loan-to-Value)**: rapporto mutuo/valore immobile, con avviso se supera l'80% tipico dei mutui fondiari italiani
 - **Rapporto rata/reddito complessivo**: somma la nuova rata alle rate di eventuali altri debiti/finanziamenti già tra le spese fisse (quelli con un tasso di interesse dichiarato), non solo la rata isolata; reddito netto mensile dichiarabile manualmente o stimato automaticamente dal budget; classificazione **Sostenibile** (≤30%) / **Al limite** (30-35%) / **Rischioso** (>35%)
 - **Stress test tassi**: simula un rialzo di 2 punti percentuali (rilevante per mutui a tasso variabile) e segnala se la sostenibilità verrebbe compromessa
-- **Spese accessorie stimate**: stima indicativa di notaio, imposte, perizia e istruttoria come % del valore dell'immobile
-- **Calcolatore finanziamento/prestito personale**: stesso motore di calcolo (durata in mesi), senza LTV né spese accessorie, per prestiti personali o cessioni del quinto
+- **Tutto ciò che non rientra nel mutuo**: capitale proprio (prezzo − mutuo) più spese accessorie — notaio, istruttoria bancaria, perizia, agenzia immobiliare, imposta di registro/IVA (stimata in base al tipo di acquisto: prima/seconda casa, da privato/costruttore) — dichiarabili o stimate automaticamente
+- **Fonti a cui attingere**: confronto tra il totale da pagare e la liquidità disponibile (dichiarata o dal questionario Finanza Personale); se dichiari gli anni di iscrizione a un fondo pensione complementare, verifica l'idoneità all'anticipazione per prima casa (D.Lgs. 252/2005: richiede almeno 8 anni di iscrizione, mai ammessa per la seconda casa) e ne stima l'importo (fino al 75% del montante); infine, per il fabbisogno residuo, stima i mesi di risparmio necessari in base al budget e propone altre opzioni pratiche
+
+### Finanziamenti (v3.1)
+- **Calcolatore finanziamento/prestito personale**: stesso motore di calcolo alla francese (durata in mesi), senza LTV né spese accessorie, per prestiti personali o cessioni del quinto, con lo stesso rapporto rata/reddito complessivo dei mutui
 
 ---
 
@@ -357,7 +361,8 @@ finai/
 │       │   │   │   │             StatementUploadResultDto, DeleteCountDto, InvestorProfileDto,
 │       │   │   │   │             QuestionnaireRequest, RecommendationDto, AllocationDto
 │       │   │   │   ├── finance/mortgage/ MortgageRequest, MortgageSimulationDto, LoanRequest,
-│       │   │   │   │             LoanSimulationDto, AmortizationYearDto, IncomeEstimateDto
+│       │   │   │   │             LoanSimulationDto, AmortizationYearDto, IncomeEstimateDto,
+│       │   │   │   │             PensionFundAdviceDto, BudgetAdviceDto
 │       │   │   │   ├── analytics/ (DTO condivisi metriche)
 │       │   │   │   └── ai/       ChatRequest, ChatMessage
 │       │   │   ├── exception/
@@ -432,7 +437,7 @@ finai/
     ├── index.html
     └── src/
         ├── main.tsx
-        ├── App.tsx               # QueryClientProvider + lazy tab router (15 tab)
+        ├── App.tsx               # QueryClientProvider + lazy tab router (16 tab)
         ├── styles.css
         ├── lib/
         │   ├── constants.ts      # STOCK_UNIVERSE (160+ ticker geografici), ETF, INDICES
@@ -457,7 +462,7 @@ finai/
         │   ├── useFinance.ts     # React Query estratti, spese fisse, budget, questionario
         │   └── useMortgage.ts    # React Query stima reddito + simulazione mutuo/finanziamento
         ├── components/
-        │   ├── layout/   Header, NavTabs (15 tab), PandaLoader
+        │   ├── layout/   Header, NavTabs (16 tab), PandaLoader
         │   ├── common/   SearchInput (autocomplete)
         │   ├── market/   IndexBar, SentimentMeter, MarketGrid, MarketRow
         │   ├── analyze/  StockHero, PriceChart, SignalBadge, PredictionCard
@@ -470,7 +475,7 @@ finai/
             ├── MarketPage, AnalyzePage, ComparePage, AlertsPage
             ├── LongTermPage, PortfolioPage, IPOPage
             ├── SuggestedPage, ScreenerPage, WatchlistPage, MacroPage
-            ├── SimulatorPage, PersonalFinancePage, MortgagePage, GuidePage
+            ├── SimulatorPage, PersonalFinancePage, MortgagePage, FinancingPage, GuidePage
 ```
 
 ---
@@ -775,15 +780,17 @@ Tab supportate nel context: `analyze` | `compare` | `portfolio` | `longterm` | `
 >
 > Il consiglio di investimento segnala `emergencyFundWarning` se la liquidità dichiarata copre meno di 3 mesi di spese, e `highInterestDebtWarning` se tra le spese fisse c'è un debito con tasso ≥ 6%/anno: in entrambi i casi, sistemare la propria situazione finanziaria di base ha priorità rispetto a investire la quota disponibile.
 
-### Mutuo e Finanziamenti
+### Mutui e Finanziamenti
 
 | Endpoint | Descrizione |
 |----------|-------------|
 | `GET /api/finance/mortgage/income-estimate` | Reddito netto mensile stimato dal budget, per precompilare il calcolatore |
-| `POST /api/finance/mortgage/simulate` | Simula un mutuo (body: `{propertyValue, loanAmount, interestRatePct, years, monthlyNetIncome?}`) → rata, LTV, rapporto rata/reddito, stress test, piano di ammortamento |
+| `POST /api/finance/mortgage/simulate` | Simula un mutuo (body: `{propertyValue, loanAmount, interestRatePct, years, monthlyNetIncome?, purchaseType?, notaryCosts?, originationFees?, appraisalFees?, agencyFees?, registrationTax?, liquidSavings?, pensionFundYears?, pensionFundBalance?}`) → rata, LTV, rapporto rata/reddito, stress test, capitale proprio, spese accessorie, fabbisogno residuo, idoneità fondo pensione, consigli di budget, piano di ammortamento |
 | `POST /api/finance/loan/simulate` | Simula un finanziamento/prestito personale (body: `{loanAmount, interestRatePct, months, monthlyNetIncome?}`) → rata, rapporto rata/reddito, piano di ammortamento |
 
 > Rata calcolata con piano di ammortamento **alla francese**: `R = C · i / (1 - (1+i)⁻ⁿ)`, con `i` tasso mensile e `n` numero di rate. Il rapporto rata/reddito è **complessivo**: somma la nuova rata alle rate di altri debiti già tra le spese fisse (quelli con `interestRatePct` valorizzato), non la rata isolata. Senza `monthlyNetIncome` dichiarato, viene usata la stima del budget (`incomeEstimated: true` nella risposta); se nessuna delle due è disponibile, l'endpoint risponde 422.
+>
+> Per il mutuo, `notaryCosts`/`originationFees`/`appraisalFees`/`agencyFees`/`registrationTax` sono opzionali: se non dichiarati, vengono stimati (notaio ~2% dell'immobile, istruttoria ~0.5% del mutuo, perizia 300€ flat, agenzia ~3%+IVA; l'imposta di registro/IVA dipende da `purchaseType` — `PRIMA_CASA_PRIVATO` 2% min 1.000€, `PRIMA_CASA_COSTRUTTORE` IVA 4%+600€, `SECONDA_CASA_PRIVATO` 9% min 1.000€, `SECONDA_CASA_COSTRUTTORE` IVA 10%+600€ — stima approssimata sul prezzo dichiarato, non sul valore catastale). `totalOutOfPocketCost` (capitale proprio + spese accessorie) è confrontato con `liquidSavings` (dichiarata o dal profilo investitore) per calcolare `shortfall`. Se `pensionFundYears` è dichiarato, `pensionFund` verifica l'idoneità all'anticipazione fondo pensione per prima casa (richiede almeno 8 anni di iscrizione, D.Lgs. 252/2005, mai ammessa per seconda casa) e stima l'importo anticipabile (75% del `pensionFundBalance`, se dichiarato). `budgetAdvice` elenca in ordine le fonti a cui attingere per il fabbisogno residuo (liquidità, fondo pensione se idoneo, risparmio mensile stimato dal budget, altre opzioni).
 
 ---
 

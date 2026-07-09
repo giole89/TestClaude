@@ -1,10 +1,12 @@
 package com.finai.service;
 
 import com.finai.domain.entity.FixedExpense;
+import com.finai.domain.entity.InvestorProfile;
 import com.finai.dto.finance.BudgetDto;
 import com.finai.dto.finance.mortgage.*;
 import com.finai.exception.FinaiException;
 import com.finai.repository.FixedExpenseRepository;
+import com.finai.repository.InvestorProfileRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -12,24 +14,29 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
- * Calcolatore di mutui e finanziamenti: rata con piano di ammortamento alla francese (quota
- * capitale crescente, rata costante — lo standard dei mutui e prestiti personali italiani),
- * più gli indicatori di sostenibilità che una banca valuterebbe in fase di istruttoria:
+ * Calcolatore di mutui per l'acquisto di una casa: rata con piano di ammortamento alla francese
+ * (quota capitale crescente, rata costante — lo standard dei mutui italiani), più gli indicatori
+ * che una banca valuterebbe in fase di istruttoria e il quadro completo del costo dell'operazione:
  * <ul>
  *   <li>LTV (loan-to-value): quota del valore dell'immobile coperta dal mutuo richiesto;</li>
  *   <li>rapporto rata/reddito, calcolato non solo sulla nuova rata ma sommandola alle rate di
- *       eventuali altri debiti già tra le spese fisse dell'utente (il vero indicatore di
- *       sostenibilità usato in istruttoria è il rapporto rata complessiva/reddito, non la
- *       singola rata isolata);</li>
- *   <li>stress test: cosa succede alla sostenibilità se il tasso salisse, rilevante soprattutto
- *       per i mutui a tasso variabile;</li>
- *   <li>stima indicativa delle spese accessorie di un mutuo (notaio, imposte, perizia, istruttoria).</li>
+ *       eventuali altri debiti già tra le spese fisse dell'utente;</li>
+ *   <li>stress test: cosa succede alla sostenibilità se il tasso salisse;</li>
+ *   <li>tutto ciò che <strong>non</strong> è coperto dal mutuo: capitale proprio (differenza tra
+ *       prezzo e mutuo) più le spese accessorie (notaio, istruttoria, perizia, agenzia, imposta di
+ *       registro/IVA), dichiarate dall'utente o stimate;</li>
+ *   <li>a quali fonti attingere per coprire questo fabbisogno: liquidità disponibile, eventuale
+ *       anticipazione del fondo pensione complementare (ammessa solo dopo 8 anni di iscrizione e
+ *       solo per la prima casa), risparmio mensile residuo.</li>
  * </ul>
  */
 @Service
 public class MortgageService {
+
+    private static final String PROFILE_ID = "default";
 
     /** LTV oltre il quale un mutuo fondiario italiano tipicamente richiede condizioni più severe o garanzie aggiuntive. */
     private static final double MAX_RECOMMENDED_LTV_PCT = 80.0;
@@ -37,16 +44,32 @@ public class MortgageService {
     private static final double MAX_RECOMMENDED_PAYMENT_TO_INCOME_PCT = 35.0;
     /** Soglia sotto la quale il rapporto è considerato pienamente sostenibile senza riserve. */
     private static final double COMFORTABLE_PAYMENT_TO_INCOME_PCT = 30.0;
-    /** Rialzo di tasso simulato nello stress test (rilevante per mutui/finanziamenti a tasso variabile). */
+    /** Rialzo di tasso simulato nello stress test (rilevante per mutui a tasso variabile). */
     private static final double STRESS_TEST_RATE_INCREASE_PCT = 2.0;
-    /** Stima indicativa delle spese accessorie di un mutuo (notaio, imposte, perizia, istruttoria) come % del valore immobile. */
-    private static final double ANCILLARY_COSTS_PCT_OF_PROPERTY = 2.5;
+
+    private static final double NOTARY_DEFAULT_PCT_OF_PROPERTY = 2.0;
+    private static final double ORIGINATION_DEFAULT_PCT_OF_LOAN = 0.5;
+    private static final double APPRAISAL_DEFAULT_FLAT = 300.0;
+    private static final double AGENCY_DEFAULT_PCT_OF_PROPERTY = 3.0;
+    private static final double AGENCY_IVA_MULTIPLIER = 1.22;
+    private static final double MIN_REGISTRATION_TAX = 1000.0;
+    private static final double BUILDER_FIXED_TAXES = 600.0;
+
+    /** Anni minimi di iscrizione al fondo pensione richiesti per l'anticipazione finalizzata all'acquisto della prima casa (D.Lgs. 252/2005, art. 11 comma 7). */
+    private static final int PENSION_FUND_MIN_YEARS_FOR_HOME = 8;
+    private static final double PENSION_FUND_MAX_ANTICIPATION_PCT = 75.0;
+
+    private static final Set<String> FIRST_HOME_TYPES = Set.of("PRIMA_CASA_PRIVATO", "PRIMA_CASA_COSTRUTTORE");
+    private static final Set<String> VALID_PURCHASE_TYPES = Set.of(
+            "PRIMA_CASA_PRIVATO", "PRIMA_CASA_COSTRUTTORE", "SECONDA_CASA_PRIVATO", "SECONDA_CASA_COSTRUTTORE");
 
     private final FixedExpenseRepository fixedExpenseRepo;
+    private final InvestorProfileRepository investorProfileRepo;
     private final BudgetService budgetService;
 
-    public MortgageService(FixedExpenseRepository fixedExpenseRepo, BudgetService budgetService) {
+    public MortgageService(FixedExpenseRepository fixedExpenseRepo, InvestorProfileRepository investorProfileRepo, BudgetService budgetService) {
         this.fixedExpenseRepo = fixedExpenseRepo;
+        this.investorProfileRepo = investorProfileRepo;
         this.budgetService = budgetService;
     }
 
@@ -82,7 +105,24 @@ public class MortgageService {
                     STRESS_TEST_RATE_INCREASE_PCT, round(stressPayment), stressCombinedRatioPct, MAX_RECOMMENDED_PAYMENT_TO_INCOME_PCT)
                 : null;
 
-        double ancillaryCosts = req.propertyValue() * ANCILLARY_COSTS_PCT_OF_PROPERTY / 100.0;
+        String purchaseType = resolvePurchaseType(req.purchaseType());
+        double propertyValue = req.propertyValue();
+
+        CostLine notary = resolveCost(req.notaryCosts(), propertyValue * NOTARY_DEFAULT_PCT_OF_PROPERTY / 100.0);
+        CostLine origination = resolveCost(req.originationFees(), req.loanAmount() * ORIGINATION_DEFAULT_PCT_OF_LOAN / 100.0);
+        CostLine appraisal = resolveCost(req.appraisalFees(), APPRAISAL_DEFAULT_FLAT);
+        CostLine agency = resolveCost(req.agencyFees(), propertyValue * AGENCY_DEFAULT_PCT_OF_PROPERTY / 100.0 * AGENCY_IVA_MULTIPLIER);
+        CostLine registrationTax = resolveCost(req.registrationTax(), estimateRegistrationTax(propertyValue, purchaseType));
+
+        double downPayment = Math.max(0, propertyValue - req.loanAmount());
+        double totalAncillaryCosts = notary.amount() + origination.amount() + appraisal.amount() + agency.amount() + registrationTax.amount();
+        double totalOutOfPocketCost = downPayment + totalAncillaryCosts;
+
+        LiquidSavingsContext liquidSavings = resolveLiquidSavings(req.liquidSavings());
+        double shortfall = Math.max(0, totalOutOfPocketCost - liquidSavings.amount());
+
+        PensionFundAdviceDto pensionFund = pensionFundAdvice(req.pensionFundYears(), req.pensionFundBalance(), purchaseType);
+        List<BudgetAdviceDto> budgetAdvice = buildBudgetAdvice(totalOutOfPocketCost, liquidSavings.amount(), pensionFund);
 
         return new MortgageSimulationDto(
                 round(monthlyPayment), round(totalPaid), round(totalInterest),
@@ -91,7 +131,18 @@ public class MortgageService {
                 round(otherDebt), round(ratioPct), round(combinedRatioPct),
                 affordabilityLabel(combinedRatioPct), affordabilityWarning(combinedRatioPct, otherDebt),
                 round(stressRate), round(stressPayment), round(stressCombinedRatioPct), stressWarning,
-                round(ancillaryCosts),
+                round(downPayment),
+                round(notary.amount()), notary.estimated(),
+                round(origination.amount()), origination.estimated(),
+                round(appraisal.amount()), appraisal.estimated(),
+                round(agency.amount()), agency.estimated(),
+                round(registrationTax.amount()), registrationTax.estimated(),
+                "Stima approssimata sul prezzo dichiarato: per un acquisto da privato l'imposta di registro si calcola in "
+                + "realtà sul valore catastale (in genere inferiore al prezzo di mercato), quindi questa stima è spesso "
+                + "più alta del dovuto — chiedi il calcolo esatto al notaio prima di impegnarti.",
+                round(totalAncillaryCosts), round(totalOutOfPocketCost),
+                round(liquidSavings.amount()), liquidSavings.source(), round(shortfall),
+                pensionFund, budgetAdvice,
                 buildSchedule(req.loanAmount(), req.interestRatePct(), months, monthlyPayment));
     }
 
@@ -172,7 +223,7 @@ public class MortgageService {
                 + "nella sezione Finanza Personale per stimarlo automaticamente.", 422);
     }
 
-    /** Somma le rate mensili di altri debiti/finanziamenti già tra le spese fisse (tasso di interesse dichiarato): la vera base per il rapporto rata/reddito è la rata complessiva, non solo quella del nuovo mutuo/finanziamento. */
+    /** Somma le rate mensili di altri debiti/finanziamenti già tra le spese fisse (tasso di interesse dichiarato): la vera base per il rapporto rata/reddito è la rata complessiva, non solo quella del nuovo mutuo. */
     private double sumOtherActiveDebtPayments() {
         return fixedExpenseRepo.findByActiveTrue().stream()
                 .filter(e -> e.getInterestRatePct() != null)
@@ -201,6 +252,143 @@ public class MortgageService {
                 + "sostenibile dalle banche in fase di istruttoria. Valuta un importo inferiore, una durata più lunga "
                 + "(rata più bassa ma interessi totali più alti) o un reddito/garante aggiuntivo.",
                 combinedRatioPct, debtNote, MAX_RECOMMENDED_PAYMENT_TO_INCOME_PCT);
+    }
+
+    // ─────────────────────────────────── Costo non coperto dal mutuo ──────────
+
+    private record CostLine(double amount, boolean estimated) {}
+
+    private CostLine resolveCost(Double declared, double estimate) {
+        return declared != null ? new CostLine(declared, false) : new CostLine(estimate, true);
+    }
+
+    private String resolvePurchaseType(String raw) {
+        if (raw == null || raw.isBlank()) return "PRIMA_CASA_PRIVATO";
+        String normalized = raw.trim().toUpperCase(Locale.ITALIAN);
+        if (!VALID_PURCHASE_TYPES.contains(normalized)) {
+            throw new FinaiException("purchaseType non valido: deve essere uno tra " + VALID_PURCHASE_TYPES, 400);
+        }
+        return normalized;
+    }
+
+    private double estimateRegistrationTax(double propertyValue, String purchaseType) {
+        return switch (purchaseType) {
+            case "PRIMA_CASA_PRIVATO" -> Math.max(propertyValue * 0.02, MIN_REGISTRATION_TAX);
+            case "PRIMA_CASA_COSTRUTTORE" -> propertyValue * 0.04 + BUILDER_FIXED_TAXES;
+            case "SECONDA_CASA_PRIVATO" -> Math.max(propertyValue * 0.09, MIN_REGISTRATION_TAX);
+            case "SECONDA_CASA_COSTRUTTORE" -> propertyValue * 0.10 + BUILDER_FIXED_TAXES;
+            default -> Math.max(propertyValue * 0.02, MIN_REGISTRATION_TAX);
+        };
+    }
+
+    // ─────────────────────────────────── Liquidità e fondo pensione ───────────
+
+    private record LiquidSavingsContext(double amount, String source) {}
+
+    private LiquidSavingsContext resolveLiquidSavings(Double declared) {
+        if (declared != null && declared > 0) return new LiquidSavingsContext(declared, "DECLARED");
+
+        InvestorProfile profile = investorProfileRepo.findById(PROFILE_ID).orElse(null);
+        if (profile != null && profile.getLiquidSavings() != null && profile.getLiquidSavings().doubleValue() > 0) {
+            return new LiquidSavingsContext(profile.getLiquidSavings().doubleValue(), "PROFILE");
+        }
+        return new LiquidSavingsContext(0.0, "NONE");
+    }
+
+    /**
+     * Verifica l'idoneità del fondo pensione complementare come fonte per il capitale proprio, secondo
+     * il D.Lgs. 252/2005: l'anticipazione fino al 75% del montante per l'acquisto della prima casa (per
+     * sé o per i figli) è ammessa solo dopo almeno 8 anni di iscrizione, e mai per la seconda casa
+     * (a parte l'eccezione, non pertinente qui, per gravi spese sanitarie ammessa in qualsiasi momento).
+     */
+    private PensionFundAdviceDto pensionFundAdvice(Integer years, Double balance, String purchaseType) {
+        if (years == null) return null;
+
+        boolean isFirstHome = FIRST_HOME_TYPES.contains(purchaseType);
+        boolean hasMinYears = years >= PENSION_FUND_MIN_YEARS_FOR_HOME;
+        boolean eligible = isFirstHome && hasMinYears;
+        int yearsUntilEligible = Math.max(0, PENSION_FUND_MIN_YEARS_FOR_HOME - years);
+
+        Double maxAnticipationPct = eligible ? PENSION_FUND_MAX_ANTICIPATION_PCT : null;
+        Double estimatedMax = (eligible && balance != null) ? round(balance * PENSION_FUND_MAX_ANTICIPATION_PCT / 100.0) : null;
+
+        String note;
+        if (!isFirstHome) {
+            note = "L'anticipazione del fondo pensione per l'acquisto di un immobile è ammessa dalla legge solo per la "
+                    + "prima casa (per te o per i tuoi figli), non per la seconda casa: questa fonte non è utilizzabile "
+                    + "per l'acquisto che stai valutando, indipendentemente dagli anni di iscrizione.";
+        } else if (eligible) {
+            note = String.format(Locale.ITALIAN,
+                    "Con %d anni di iscrizione hai maturato il requisito minimo di 8 anni: puoi richiedere un'anticipazione "
+                    + "fino al %.0f%% del montante accumulato per l'acquisto della prima casa. Ricorda che l'importo anticipato "
+                    + "sconta una ritenuta sostitutiva (in genere 15%%, riducibile fino al 9%% dopo 35 anni di partecipazione) "
+                    + "e riduce corrispondentemente il capitale disponibile al pensionamento.",
+                    years, PENSION_FUND_MAX_ANTICIPATION_PCT)
+                    + (balance == null ? " Indica il montante accumulato per stimare l'importo anticipabile." : "");
+        } else {
+            note = String.format(Locale.ITALIAN,
+                    "Con %d anni di iscrizione non hai ancora maturato il requisito minimo di 8 anni previsto dal D.Lgs. "
+                    + "252/2005 per l'anticipazione finalizzata all'acquisto della prima casa: mancano ancora %d anni. "
+                    + "L'unica anticipazione ammessa in qualsiasi momento riguarda gravi spese sanitarie (terapie o interventi "
+                    + "straordinari per te, il coniuge o i figli), non l'acquisto di un immobile: non contare su questa fonte "
+                    + "per l'acquisto attuale.",
+                    years, yearsUntilEligible);
+        }
+
+        return new PensionFundAdviceDto(years, eligible, yearsUntilEligible, maxAnticipationPct, estimatedMax, note);
+    }
+
+    /** Elenco ordinato di fonti a cui attingere per coprire capitale proprio e spese accessorie non finanziate dal mutuo. */
+    private List<BudgetAdviceDto> buildBudgetAdvice(double totalOutOfPocketCost, double availableLiquidSavings, PensionFundAdviceDto pensionFund) {
+        List<BudgetAdviceDto> advice = new ArrayList<>();
+        double remaining = totalOutOfPocketCost;
+
+        if (availableLiquidSavings > 0) {
+            double used = Math.min(availableLiquidSavings, remaining);
+            remaining -= used;
+            advice.add(new BudgetAdviceDto("Liquidità disponibile",
+                    String.format(Locale.ITALIAN, "Copre %.0f € dei %.0f € necessari con la liquidità dichiarata.", used, totalOutOfPocketCost),
+                    round(used)));
+        }
+
+        if (remaining > 0 && pensionFund != null && pensionFund.eligibleForHomePurchase() && pensionFund.estimatedMaxAnticipation() != null) {
+            double used = Math.min(pensionFund.estimatedMaxAnticipation(), remaining);
+            remaining -= used;
+            advice.add(new BudgetAdviceDto("Anticipazione fondo pensione",
+                    String.format(Locale.ITALIAN, "Sei idoneo all'anticipazione per prima casa: fino a %.0f € stimati disponibili.", used),
+                    round(used)));
+        }
+
+        if (remaining > 0) {
+            BudgetDto budget = budgetService.computeNextMonthBudget();
+            double investable = budget.investableAmount() != null ? budget.investableAmount() : 0;
+            if (investable > 0) {
+                int monthsNeeded = (int) Math.ceil(remaining / investable);
+                advice.add(new BudgetAdviceDto("Risparmio mensile residuo",
+                        String.format(Locale.ITALIAN,
+                                "Con una quota investibile mensile stimata di %.0f €, servirebbero circa %d mesi di risparmio per "
+                                + "accantonare i %.0f € ancora mancanti.", investable, monthsNeeded, remaining),
+                        null));
+            } else {
+                advice.add(new BudgetAdviceDto("Risparmio mensile residuo",
+                        "Non ci sono ancora dati sufficienti sul budget mensile per stimare un piano di accantonamento: "
+                        + "importa un estratto conto nella sezione Finanza Personale per una stima più precisa.",
+                        null));
+            }
+            advice.add(new BudgetAdviceDto("Altre opzioni",
+                    "Valuta di richiedere più preventivi per ridurre le spese accessorie (notaio, agenzia), aumentare la quota "
+                    + "finanziata dal mutuo se il rapporto rata/reddito resta sostenibile, chiedere un aiuto familiare, o posticipare "
+                    + "l'acquisto finché il fabbisogno residuo non sarà coperto.",
+                    null));
+        }
+
+        if (advice.isEmpty()) {
+            advice.add(new BudgetAdviceDto("Copertura completa",
+                    "La liquidità dichiarata copre l'intero capitale proprio e le spese accessorie stimate: nessuna fonte aggiuntiva è necessaria.",
+                    0.0));
+        }
+
+        return advice;
     }
 
     private double round(double value) {
