@@ -94,47 +94,73 @@ function CostBreakdownCard({ result }: { result: MortgageSimulation }) {
   )
 }
 
+function SaleWaterfallRow({ label, amount, negative, bold, note }: { label: string; amount: number; negative?: boolean; bold?: boolean; note?: string }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8,
+      padding: '7px 0', borderBottom: '1px solid var(--border)',
+    }}>
+      <div>
+        <span style={{ fontFamily: 'Syne', fontWeight: bold ? 700 : 400, fontSize: bold ? 13 : 12, color: 'var(--text)' }}>{label}</span>
+        {note && <span style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginLeft: 6 }}>{note}</span>}
+      </div>
+      <span style={{
+        fontFamily: bold ? 'Instrument Serif' : 'JetBrains Mono', fontWeight: bold ? 400 : 500,
+        fontSize: bold ? 16 : 12, color: bold ? (amount >= 0 ? 'var(--acc)' : 'var(--red)') : 'var(--text)',
+      }}>
+        {negative ? '− ' : ''}{formatNumber(Math.abs(amount), 0)} €
+      </span>
+    </div>
+  )
+}
+
 function HomeSaleCard({ sale }: { sale: HomeSaleAdvice }) {
   return (
     <div style={{
-      padding: '10px 12px', borderRadius: 8, marginBottom: 10,
+      padding: '12px 14px', borderRadius: 8, marginBottom: 10,
       background: sale.netProceeds > 0 ? 'rgba(110,231,183,0.08)' : 'rgba(239,68,68,0.1)',
       border: `1px solid ${sale.netProceeds > 0 ? 'var(--acc)' : 'var(--red)'}`,
     }}>
-      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--text)', marginBottom: 6 }}>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--text)', marginBottom: 4 }}>
         🏡 Vendita immobile esistente
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 8 }}>
-        <div>
-          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Plusvalenza</div>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--text)' }}>{formatNumber(sale.capitalGain, 0)} €</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, margin: '10px 0' }}>
+        <div style={{ background: 'var(--s2)', borderRadius: 8, padding: '10px 12px' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Guadagno totale (plusvalenza)</div>
+          <div style={{ fontFamily: 'Instrument Serif', fontSize: 18, color: 'var(--text)' }}>{formatNumber(sale.capitalGain, 0)} €</div>
+          <div style={{ fontFamily: 'Syne', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>prezzo di vendita − prezzo di acquisto</div>
         </div>
-        <div>
-          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Imposta plusvalenza</div>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: sale.capitalGainsTaxable ? 'var(--red)' : 'var(--text)' }}>
-            {formatNumber(sale.capitalGainsTax, 0)} €
-          </div>
-        </div>
-        <div>
-          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>
-            Spese agenzia (vendita){sale.saleAgencyFeeMode === 'PERCENTAGE' && ` (${formatNumber(sale.saleAgencyFeesBase, 0)}€ + IVA ${formatNumber(sale.saleAgencyFeesIva, 0)}€)`}
-          </div>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--text)' }}>
-            {formatNumber(sale.saleAgencyFees, 0)} € {sale.saleAgencyFeesEstimated && <span style={{ color: 'var(--muted)', fontSize: 9 }}>(stimato)</span>}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Mutuo residuo da estinguere</div>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--text)' }}>{formatNumber(sale.residualMortgageBalance, 0)} €</div>
-        </div>
-        <div>
-          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Capitale netto disponibile</div>
-          <div style={{ fontFamily: 'JetBrains Mono', fontSize: 14, fontWeight: 700, color: sale.netProceeds > 0 ? 'var(--acc)' : 'var(--red)' }}>
+        <div style={{ background: 'var(--s2)', borderRadius: 8, padding: '10px 12px' }}>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Quanto ti rimane, tolte tutte le spese</div>
+          <div style={{ fontFamily: 'Instrument Serif', fontSize: 18, color: sale.netProceeds > 0 ? 'var(--acc)' : 'var(--red)' }}>
             {formatNumber(sale.netProceeds, 0)} €
           </div>
+          <div style={{ fontFamily: 'Syne', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>capitale netto da usare per il nuovo acquisto</div>
         </div>
       </div>
-      <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)', lineHeight: 1.4 }}>{sale.capitalGainsNote}</div>
+
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 11, color: 'var(--muted2)', marginBottom: 4 }}>
+        Dal prezzo di vendita al netto disponibile
+      </div>
+      <div style={{ background: 'var(--s2)', borderRadius: 8, padding: '2px 12px' }}>
+        <SaleWaterfallRow label="Valore di vendita" amount={sale.netProceeds + sale.saleAgencyFees + sale.residualMortgageBalance + sale.capitalGainsTax} />
+        <SaleWaterfallRow
+          label={`Spese di agenzia${sale.saleAgencyFeeMode === 'PERCENTAGE' ? ` (${formatNumber(sale.saleAgencyFeesBase, 0)}€ + IVA ${formatNumber(sale.saleAgencyFeesIva, 0)}€)` : ' (fatturate, IVA inclusa)'}`}
+          amount={sale.saleAgencyFees}
+          negative
+          note={sale.saleAgencyFeesEstimated ? '(stimate)' : undefined}
+        />
+        {sale.residualMortgageBalance > 0 && (
+          <SaleWaterfallRow label="Mutuo/finanziamento residuo da estinguere" amount={sale.residualMortgageBalance} negative />
+        )}
+        {sale.capitalGainsTax > 0 && (
+          <SaleWaterfallRow label="Imposta sulla plusvalenza (26%)" amount={sale.capitalGainsTax} negative />
+        )}
+        <SaleWaterfallRow label="Netto disponibile" amount={sale.netProceeds} bold />
+      </div>
+
+      <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)', lineHeight: 1.4, marginTop: 8 }}>{sale.capitalGainsNote}</div>
       {sale.timingNote && (
         <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--acc3)', lineHeight: 1.4, marginTop: 6 }}>⏱ {sale.timingNote}</div>
       )}
