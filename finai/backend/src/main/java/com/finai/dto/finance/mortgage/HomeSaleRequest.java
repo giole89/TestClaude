@@ -13,7 +13,12 @@ import jakarta.validation.constraints.PositiveOrZero;
  * @param mainResidence   true se è stata abitazione principale per la maggior parte del periodo di possesso
  *                        (esenzione dalla tassazione della plusvalenza indipendentemente dagli anni di possesso)
  * @param residualMortgageBalance mutuo/finanziamento residuo da estinguere sulla casa venduta, se presente
- * @param saleAgencyFees  spese di agenzia per la vendita; se null, stima indicativa (~3% + IVA del valore di vendita)
+ * @param saleAgencyFeePct percentuale di commissione dell'agenzia per la vendita (esclusa IVA), se preferisci
+ *                        indicarla in percentuale anziché in euro; l'IVA al 22% viene aggiunta automaticamente.
+ *                        Ha priorità su {@code saleAgencyFeeAmount} se entrambi sono valorizzati
+ * @param saleAgencyFeeAmount spese di agenzia per la vendita in euro, importo finale già comprensivo di IVA;
+ *                        usato solo se {@code saleAgencyFeePct} è null. Se nessuno dei due è valorizzato,
+ *                        stima indicativa (~3% + IVA del valore di vendita)
  * @param monthsUntilSale  tra quanti mesi prevedi di completare la vendita (opzionale, per una nota sui tempi)
  * @param mustFullyFundPurchase true se il capitale netto di questa vendita è l'unica fonte su cui puoi contare e
  *                        deve coprire da solo capitale proprio (anticipo) e tutte le spese accessorie del nuovo
@@ -39,8 +44,11 @@ public record HomeSaleRequest(
         @PositiveOrZero(message = "residualMortgageBalance deve essere >= 0")
         Double residualMortgageBalance,
 
-        @PositiveOrZero(message = "saleAgencyFees deve essere >= 0")
-        Double saleAgencyFees,
+        @PositiveOrZero(message = "saleAgencyFeePct deve essere >= 0")
+        Double saleAgencyFeePct,
+
+        @PositiveOrZero(message = "saleAgencyFeeAmount deve essere >= 0")
+        Double saleAgencyFeeAmount,
 
         @PositiveOrZero(message = "monthsUntilSale deve essere >= 0")
         Integer monthsUntilSale,

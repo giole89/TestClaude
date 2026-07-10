@@ -65,6 +65,11 @@ public class MortgageService {
     /** Tempo medio indicativo per concludere la vendita di un immobile in Italia, usato solo per un confronto informativo sui tempi. */
     private static final int TYPICAL_SALE_TIMEFRAME_MONTHS = 6;
 
+    /** Detrazione IRPEF su interessi passivi mutuo e spese di intermediazione immobiliare, solo prima casa (art. 15 TUIR). */
+    private static final double TAX_DEDUCTION_RATE_PCT = 19.0;
+    private static final double MAX_DEDUCTIBLE_INTEREST_PER_YEAR = 4000.0;
+    private static final double MAX_DEDUCTIBLE_AGENCY_FEE = 1000.0;
+
     private static final Set<String> FIRST_HOME_TYPES = Set.of("PRIMA_CASA_PRIVATO", "PRIMA_CASA_COSTRUTTORE");
     private static final Set<String> VALID_PURCHASE_TYPES = Set.of(
             "PRIMA_CASA_PRIVATO", "PRIMA_CASA_COSTRUTTORE", "SECONDA_CASA_PRIVATO", "SECONDA_CASA_COSTRUTTORE");
@@ -138,6 +143,9 @@ public class MortgageService {
         List<DurationOptionDto> durationComparison = computeDurationComparison(req.loanAmount(), req.interestRatePct(),
                 req.years(), income.amount(), otherDebt);
 
+        List<AmortizationYearDto> schedule = buildSchedule(req.loanAmount(), req.interestRatePct(), months, monthlyPayment);
+        TaxDeductionAdviceDto taxDeductions = taxDeductionAdvice(purchaseType, schedule.get(0).interestPaid(), agency.total());
+
         return new MortgageSimulationDto(
                 round(monthlyPayment), round(totalPaid), round(totalInterest),
                 round(ltvPct), ltvWarning,
@@ -158,8 +166,8 @@ public class MortgageService {
                 round(liquidSavings.amount()), liquidSavings.source(),
                 homeSale, round(totalAvailableCapital), round(shortfall),
                 pensionFund, budgetAdvice,
-                maxLoanAdvice, durationComparison,
-                buildSchedule(req.loanAmount(), req.interestRatePct(), months, monthlyPayment));
+                maxLoanAdvice, durationComparison, taxDeductions,
+                schedule);
     }
 
     public LoanSimulationDto simulateLoan(LoanRequest req) {
@@ -384,6 +392,47 @@ public class MortgageService {
         return new PensionFundAdviceDto(years, eligible, yearsUntilEligible, maxAnticipationPct, estimatedMax, note);
     }
 
+    // ─────────────────────────────────── Detrazioni fiscali ───────────────────
+
+    /**
+     * Detrazione IRPEF 19% su interessi passivi del mutuo (fino a 4.000€ di interessi annui) e su spese di
+     * intermediazione immobiliare (fino a 1.000€ di spesa, una tantum), ammessa solo per l'acquisto della
+     * prima casa (art. 15 TUIR). La quota interessi del mutuo si riduce anno dopo anno nel piano di
+     * ammortamento alla francese, quindi la detrazione stimata qui (basata sul primo anno) è la più alta:
+     * scenderà progressivamente negli anni successivi.
+     */
+    private TaxDeductionAdviceDto taxDeductionAdvice(String purchaseType, double firstYearInterest, double agencyFeesTotal) {
+        boolean eligible = FIRST_HOME_TYPES.contains(purchaseType);
+
+        double interestBase = Math.min(firstYearInterest, MAX_DEDUCTIBLE_INTEREST_PER_YEAR);
+        double interestDeduction = eligible ? interestBase * TAX_DEDUCTION_RATE_PCT / 100.0 : 0.0;
+        double agencyBase = Math.min(agencyFeesTotal, MAX_DEDUCTIBLE_AGENCY_FEE);
+        double agencyDeduction = eligible ? agencyBase * TAX_DEDUCTION_RATE_PCT / 100.0 : 0.0;
+
+        String note;
+        if (!eligible) {
+            note = "Le detrazioni IRPEF su interessi del mutuo e spese di agenzia spettano solo per l'acquisto della "
+                    + "prima casa (abitazione principale): per la seconda casa la legge non le ammette.";
+        } else {
+            note = String.format(Locale.ITALIAN,
+                    "In dichiarazione dei redditi puoi detrarre il %.0f%% degli interessi passivi del mutuo, fino a un massimo "
+                    + "di %.0f € di interessi annui: sul primo anno, con circa %.0f € di interessi stimati, la detrazione è di "
+                    + "circa %.0f €, destinata a scendere negli anni successivi man mano che la quota interessi si riduce. Puoi "
+                    + "inoltre detrarre il %.0f%% delle spese di intermediazione immobiliare, fino a %.0f € di spesa, una tantum "
+                    + "nell'anno di acquisto: sulla spesa stimata di %.0f € la detrazione è di circa %.0f €. Entrambe richiedono "
+                    + "capienza IRPEF sufficiente (un'imposta lorda dovuta almeno pari alla detrazione) e, se il mutuo è "
+                    + "cointestato, vanno ripartite tra i cointestatari in base alle rispettive quote — utile indirizzarle verso "
+                    + "chi ha più capienza fiscale. Conserva fatture e bonifici: vanno indicati nel modello 730 o Redditi PF "
+                    + "(quadro E) con il tuo commercialista o CAF.",
+                    TAX_DEDUCTION_RATE_PCT, MAX_DEDUCTIBLE_INTEREST_PER_YEAR, firstYearInterest, interestDeduction,
+                    TAX_DEDUCTION_RATE_PCT, MAX_DEDUCTIBLE_AGENCY_FEE, agencyFeesTotal, agencyDeduction);
+        }
+
+        return new TaxDeductionAdviceDto(eligible, TAX_DEDUCTION_RATE_PCT, MAX_DEDUCTIBLE_INTEREST_PER_YEAR,
+                round(firstYearInterest), round(interestDeduction), TAX_DEDUCTION_RATE_PCT, MAX_DEDUCTIBLE_AGENCY_FEE,
+                round(agencyDeduction), note);
+    }
+
     // ─────────────────────────────────── Vendita casa esistente ───────────────
 
     /**
@@ -419,9 +468,9 @@ public class MortgageService {
                             : String.format(Locale.ITALIAN, "sono passati almeno %d anni dall'acquisto", CAPITAL_GAINS_EXEMPT_HOLDING_YEARS));
         }
 
-        CostLine saleAgency = resolveCost(req.saleAgencyFees(), req.saleValue() * AGENCY_DEFAULT_PCT_OF_PROPERTY / 100.0 * AGENCY_IVA_MULTIPLIER);
+        AgencyFeeLine saleAgency = resolveAgencyFee(req.saleAgencyFeePct(), req.saleAgencyFeeAmount(), req.saleValue());
         double residual = req.residualMortgageBalance() != null ? req.residualMortgageBalance() : 0.0;
-        double netProceeds = req.saleValue() - saleAgency.amount() - residual - tax;
+        double netProceeds = req.saleValue() - saleAgency.total() - residual - tax;
 
         String timingNote = null;
         if (req.monthsUntilSale() != null) {
@@ -463,7 +512,7 @@ public class MortgageService {
 
         return new HomeSaleAdviceDto(
                 round(capitalGain), taxable, round(tax), capitalGainsNote,
-                round(saleAgency.amount()), saleAgency.estimated(),
+                round(saleAgency.total()), saleAgency.estimated(), round(saleAgency.base()), round(saleAgency.iva()), saleAgency.mode(),
                 round(residual), round(netProceeds),
                 req.monthsUntilSale(), timingNote, summary,
                 mustFullyFund, coversFullPurchase, round(fundingGapOrSurplus), fullFundingNote);

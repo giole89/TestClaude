@@ -49,6 +49,7 @@ import java.util.List;
  * @param budgetAdvice           elenco ordinato di fonti a cui attingere per coprire il fabbisogno residuo
  * @param maxLoanAdvice          quanto mutuo si potrebbe ragionevolmente richiedere, calcolato al contrario da reddito, altri debiti e vincolo di LTV
  * @param durationComparison     confronto tra rata/interessi/sostenibilità dello stesso mutuo simulato su durate diverse (10/15/20/25/30 anni)
+ * @param taxDeductions          detrazioni fiscali IRPEF potenzialmente spettanti su interessi del mutuo e spese di agenzia (solo prima casa)
  */
 public record MortgageSimulationDto(
         Double monthlyPayment,
@@ -93,5 +94,6 @@ public record MortgageSimulationDto(
         List<BudgetAdviceDto> budgetAdvice,
         MaxLoanAdviceDto maxLoanAdvice,
         List<DurationOptionDto> durationComparison,
+        TaxDeductionAdviceDto taxDeductions,
         List<AmortizationYearDto> schedule
 ) {}

@@ -17,7 +17,8 @@ export interface HomeSaleInput {
   yearsOwned: number
   mainResidence?: boolean | null
   residualMortgageBalance?: number | null
-  saleAgencyFees?: number | null
+  saleAgencyFeePct?: number | null
+  saleAgencyFeeAmount?: number | null
   monthsUntilSale?: number | null
   mustFullyFundPurchase?: boolean | null
 }
@@ -63,6 +64,9 @@ export interface HomeSaleAdvice {
   capitalGainsNote: string
   saleAgencyFees: number
   saleAgencyFeesEstimated: boolean
+  saleAgencyFeesBase: number
+  saleAgencyFeesIva: number
+  saleAgencyFeeMode: 'PERCENTAGE' | 'AMOUNT'
   residualMortgageBalance: number
   netProceeds: number
   monthsUntilSale: number | null
@@ -84,6 +88,18 @@ export interface MaxLoanAdvice {
   requestedLoanNote: string
   minLoanNeededGivenCapital: number
   equityRatioAtRecommendedPct: number
+  note: string
+}
+
+export interface TaxDeductionAdvice {
+  eligible: boolean
+  interestDeductionRatePct: number
+  maxDeductibleInterestPerYear: number
+  estimatedFirstYearInterest: number
+  estimatedAnnualInterestDeduction: number
+  agencyFeeDeductionRatePct: number
+  maxDeductibleAgencyFee: number
+  estimatedAgencyFeeDeduction: number
   note: string
 }
 
@@ -139,6 +155,7 @@ export interface MortgageSimulation {
   budgetAdvice: BudgetAdvice[]
   maxLoanAdvice: MaxLoanAdvice
   durationComparison: DurationOption[]
+  taxDeductions: TaxDeductionAdvice
   schedule: AmortizationYear[]
 }
 

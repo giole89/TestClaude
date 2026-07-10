@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMortgage, AmortizationYear, MortgageSimulation, PurchaseType, HomeSaleAdvice, DurationOption } from '@/hooks/useMortgage'
+import { useMortgage, AmortizationYear, MortgageSimulation, PurchaseType, HomeSaleAdvice, DurationOption, TaxDeductionAdvice } from '@/hooks/useMortgage'
 import { formatNumber } from '@/lib/formatters'
 
 function affordabilityColor(label: string): string {
@@ -116,7 +116,9 @@ function HomeSaleCard({ sale }: { sale: HomeSaleAdvice }) {
           </div>
         </div>
         <div>
-          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Spese agenzia (vendita)</div>
+          <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>
+            Spese agenzia (vendita){sale.saleAgencyFeeMode === 'PERCENTAGE' && ` (${formatNumber(sale.saleAgencyFeesBase, 0)}€ + IVA ${formatNumber(sale.saleAgencyFeesIva, 0)}€)`}
+          </div>
           <div style={{ fontFamily: 'JetBrains Mono', fontSize: 13, color: 'var(--text)' }}>
             {formatNumber(sale.saleAgencyFees, 0)} € {sale.saleAgencyFeesEstimated && <span style={{ color: 'var(--muted)', fontSize: 9 }}>(stimato)</span>}
           </div>
@@ -384,6 +386,15 @@ function FullOverviewCard({ result }: { result: MortgageSimulation }) {
             {formatNumber(advice.requestedLoanAmount, 0)} € / {formatNumber(advice.recommendedMaxLoan, 0)} €
           </div>
         </div>
+        {result.taxDeductions.eligible && (
+          <div style={{ background: 'rgba(110,231,183,0.08)', border: '1px solid var(--acc)', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Detrazione fiscale stimata (1° anno)</div>
+            <div style={{ fontFamily: 'JetBrains Mono', fontSize: 15, color: 'var(--acc)' }}>
+              {formatNumber(result.taxDeductions.estimatedAnnualInterestDeduction + result.taxDeductions.estimatedAgencyFeeDeduction, 0)} €
+            </div>
+            <div style={{ fontFamily: 'Syne', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>interessi mutuo (annua) + agenzia (una tantum)</div>
+          </div>
+        )}
       </div>
 
       {result.homeSale?.mustFullyFundPurchase && (
@@ -417,6 +428,39 @@ function FullOverviewCard({ result }: { result: MortgageSimulation }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function TaxDeductionCard({ tax }: { tax: TaxDeductionAdvice }) {
+  return (
+    <div style={{
+      marginTop: 14, padding: '12px 14px', borderRadius: 10,
+      background: tax.eligible ? 'rgba(110,231,183,0.08)' : 'var(--s3)',
+      border: `1px solid ${tax.eligible ? 'var(--acc)' : 'var(--border)'}`,
+    }}>
+      <div style={{ fontFamily: 'Syne', fontWeight: 700, fontSize: 12, color: 'var(--text)', marginBottom: 8 }}>
+        🧾 Detrazioni fiscali (dichiarazione dei redditi)
+      </div>
+      {tax.eligible && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 8 }}>
+          <div style={{ background: 'var(--s2)', borderRadius: 8, padding: '8px 10px' }}>
+            <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Detrazione interessi mutuo (19%, primo anno)</div>
+            <div style={{ fontFamily: 'JetBrains Mono', fontSize: 14, color: 'var(--acc)' }}>{formatNumber(tax.estimatedAnnualInterestDeduction, 0)} €/anno</div>
+            <div style={{ fontFamily: 'Syne', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+              su {formatNumber(tax.estimatedFirstYearInterest, 0)} € di interessi (max {formatNumber(tax.maxDeductibleInterestPerYear, 0)} €/anno) — diminuisce negli anni
+            </div>
+          </div>
+          <div style={{ background: 'var(--s2)', borderRadius: 8, padding: '8px 10px' }}>
+            <div style={{ fontFamily: 'Syne', fontSize: 10, color: 'var(--muted)' }}>Detrazione spese di agenzia (19%, una tantum)</div>
+            <div style={{ fontFamily: 'JetBrains Mono', fontSize: 14, color: 'var(--acc)' }}>{formatNumber(tax.estimatedAgencyFeeDeduction, 0)} €</div>
+            <div style={{ fontFamily: 'Syne', fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
+              max {formatNumber(tax.maxDeductibleAgencyFee, 0)} € di spesa detraibile, solo nell'anno di acquisto
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{ fontFamily: 'Syne', fontSize: 11, color: 'var(--muted2)', lineHeight: 1.5 }}>{tax.note}</div>
     </div>
   )
 }
@@ -499,6 +543,7 @@ function ResultCard({ result }: { result: MortgageSimulation }) {
       </div>
 
       <CostBreakdownCard result={result} />
+      <TaxDeductionCard tax={result.taxDeductions} />
       <LiquiditySourcesCard result={result} />
       <AmortizationTable schedule={result.schedule} />
     </div>
@@ -533,7 +578,9 @@ export function MortgageCalculator() {
   const [yearsOwned, setYearsOwned] = useState('')
   const [mainResidence, setMainResidence] = useState(true)
   const [residualMortgageBalance, setResidualMortgageBalance] = useState('')
-  const [saleAgencyFees, setSaleAgencyFees] = useState('')
+  const [saleAgencyFeeMode, setSaleAgencyFeeMode] = useState<'PERCENTAGE' | 'AMOUNT'>('PERCENTAGE')
+  const [saleAgencyFeePct, setSaleAgencyFeePct] = useState('')
+  const [saleAgencyFeeAmount, setSaleAgencyFeeAmount] = useState('')
   const [monthsUntilSale, setMonthsUntilSale] = useState('')
   const [mustFullyFundPurchase, setMustFullyFundPurchase] = useState(false)
 
@@ -592,7 +639,8 @@ export function MortgageCalculator() {
         yearsOwned: yearsOwnedNum,
         mainResidence,
         residualMortgageBalance: optionalNumber(residualMortgageBalance),
-        saleAgencyFees: optionalNumber(saleAgencyFees),
+        saleAgencyFeePct: saleAgencyFeeMode === 'PERCENTAGE' ? optionalNumber(saleAgencyFeePct) : null,
+        saleAgencyFeeAmount: saleAgencyFeeMode === 'AMOUNT' ? optionalNumber(saleAgencyFeeAmount) : null,
         monthsUntilSale: optionalInt(monthsUntilSale),
         mustFullyFundPurchase,
       } : null,
@@ -727,8 +775,24 @@ export function MortgageCalculator() {
             <input value={residualMortgageBalance} onChange={e => setResidualMortgageBalance(e.target.value)} type="number" placeholder="0 se nessuno" style={inputStyle} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={labelStyle}>Spese agenzia per la vendita (€)</span>
-            <input value={saleAgencyFees} onChange={e => setSaleAgencyFees(e.target.value)} type="number" placeholder="stima ~3%+IVA se vuoto" style={inputStyle} />
+            <span style={labelStyle}>
+              Spese agenzia per la vendita
+              <button
+                type="button"
+                onClick={() => setSaleAgencyFeeMode(m => m === 'PERCENTAGE' ? 'AMOUNT' : 'PERCENTAGE')}
+                style={{
+                  marginLeft: 6, padding: '1px 8px', borderRadius: 6, border: '1px solid var(--border)',
+                  background: 'var(--s2)', color: 'var(--acc)', fontFamily: 'Syne', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                {saleAgencyFeeMode === 'PERCENTAGE' ? '% → passa a €' : '€ → passa a %'}
+              </button>
+            </span>
+            {saleAgencyFeeMode === 'PERCENTAGE' ? (
+              <input value={saleAgencyFeePct} onChange={e => setSaleAgencyFeePct(e.target.value)} type="number" step="0.1" placeholder="stima 3% (+ IVA auto)" style={inputStyle} />
+            ) : (
+              <input value={saleAgencyFeeAmount} onChange={e => setSaleAgencyFeeAmount(e.target.value)} type="number" placeholder="importo finale già con IVA" style={inputStyle} />
+            )}
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={labelStyle}>Tra quanti mesi prevedi di venderla</span>

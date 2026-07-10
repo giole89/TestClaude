@@ -9,8 +9,13 @@ package com.finai.dto.finance.mortgage;
  *                              abitazione principale per la maggior parte del periodo di possesso)
  * @param capitalGainsTax       imposta sostitutiva stimata (26% della plusvalenza, se tassabile)
  * @param capitalGainsNote      spiegazione della regola applicata (esenzione o tassazione)
- * @param saleAgencyFees        spese di agenzia per la vendita (dichiarate o stimate)
+ * @param saleAgencyFees        spese di agenzia per la vendita totali, IVA inclusa (dichiarate o stimate)
  * @param saleAgencyFeesEstimated true se stimate
+ * @param saleAgencyFeesBase    quota di commissione al netto dell'IVA
+ * @param saleAgencyFeesIva     quota di IVA sulla commissione (22%, aggiunta automaticamente solo se indicata/stimata
+ *                              in percentuale; 0 se dichiarato un importo finale in euro)
+ * @param saleAgencyFeeMode     "PERCENTAGE" se calcolata da una percentuale (con IVA aggiunta automaticamente),
+ *                              "AMOUNT" se da un importo finale in euro dichiarato
  * @param residualMortgageBalance mutuo/finanziamento residuo da estinguere sulla casa venduta
  * @param netProceeds           capitale netto disponibile dopo spese, mutuo residuo ed eventuale imposta;
  *                              può essere negativo se i costi superano il valore di vendita
@@ -33,6 +38,9 @@ public record HomeSaleAdviceDto(
         String capitalGainsNote,
         Double saleAgencyFees,
         boolean saleAgencyFeesEstimated,
+        Double saleAgencyFeesBase,
+        Double saleAgencyFeesIva,
+        String saleAgencyFeeMode,
         Double residualMortgageBalance,
         Double netProceeds,
         Integer monthsUntilSale,
