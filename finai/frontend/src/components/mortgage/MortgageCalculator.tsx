@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMortgage, AmortizationYear, MortgageSimulation, PurchaseType, HomeSaleAdvice, DurationOption, TaxDeductionAdvice } from '@/hooks/useMortgage'
 import { formatNumber } from '@/lib/formatters'
+import { downloadMortgagePdf } from '@/lib/mortgagePdf'
 
 function affordabilityColor(label: string): string {
   if (label === 'Sostenibile') return 'var(--acc)'
@@ -856,6 +857,18 @@ export function MortgageCalculator() {
 
       {mortgageResult && (
         <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+            <button
+              onClick={() => downloadMortgagePdf(mortgageResult, { propertyValue: propertyNum, loanAmount: loanNum, interestRatePct: rateNum, years: yearsNum, purchaseType })}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8,
+                background: 'var(--s3)', border: '1px solid var(--acc)', color: 'var(--acc)',
+                fontFamily: 'Syne', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+              }}
+            >
+              📄 Scarica PDF del prospetto
+            </button>
+          </div>
           <FullOverviewCard result={mortgageResult} />
           <ResultCard result={mortgageResult} />
           <MaxLoanAdviceCard advice={mortgageResult.maxLoanAdvice} />

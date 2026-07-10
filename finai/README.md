@@ -93,6 +93,7 @@ Ogni sezione include un **pannello chat AI** contestuale: l'assistente conosce i
 - **Prospetto completo**: riepilogo unico con rata e sostenibilità, costo totale dell'intera operazione (prezzo + interessi + spese accessorie), quanto pagare oltre al mutuo, capitale disponibile complessivo, surplus/fabbisogno residuo, confronto mutuo richiesto/massimo consigliato, e un elenco numerato di tutti i punti di attenzione emersi (LTV, sostenibilità, stress test, mutuo sopra soglia, fondo pensione non idoneo, vendita insufficiente, tempistica di vendita)
 - **Quanto mutuo potresti richiedere**: calcolo al contrario, dagli stessi dati inseriti (reddito, altri debiti, tasso, durata, valore immobile), del mutuo massimo ragionevole — il più basso tra il massimo per rapporto rata/reddito (soglia limite 35%) e il massimo per LTV (80% del valore immobile) — con indicazione del vincolo più stringente, confronto con l'importo effettivamente simulato, e mutuo minimo necessario dato il capitale disponibile (utile per capire se si sta chiedendo più del necessario)
 - **Detrazioni fiscali (solo prima casa)**: stima le due detrazioni IRPEF previste dall'art. 15 TUIR — 19% degli interessi passivi del mutuo fino a 4.000€ di interessi annui (basata sul primo anno di ammortamento, in calo negli anni successivi), e 19% delle spese di intermediazione immobiliare fino a 1.000€, una tantum nell'anno di acquisto — con nota su capienza IRPEF necessaria e ripartizione tra cointestatari; non spettano per la seconda casa
+- **Prospetto in PDF**: genera lato client (jsPDF) un documento sintetico e diviso in sezioni numerate — sintesi, costo totale dell'operazione, capitale disponibile, mutuo massimo consigliato, detrazioni fiscali, punti di attenzione — scaricabile con un clic, senza passare dal backend
 - **Confronto tra durate**: stesso mutuo simulato su un ventaglio di durate tipiche (10/15/20/25/30 anni, più quella scelta) con rata, interessi totali, rapporto rata/reddito e sostenibilità per ciascuna, per valutare il compromesso rata-più-bassa/interessi-più-alti
 
 ### Finanziamenti (v3.1)
@@ -290,6 +291,7 @@ SimulatorPage: form acquisto/vendita
 | `zustand` | ^4.5 | State UI/chat (tab attivo, tema) |
 | `recharts` | ^2.12 | Grafici LineChart con SMA overlay |
 | `framer-motion` | ^11.3 | Animazioni |
+| `jspdf` + `jspdf-autotable` | ^4.2 / ^5.0 | Generazione lato client del PDF del prospetto mutuo |
 | `typescript` | ^5.4 | Type checking strict |
 
 ---
@@ -451,7 +453,8 @@ finai/
         ├── lib/
         │   ├── constants.ts      # STOCK_UNIVERSE (160+ ticker geografici), ETF, INDICES
         │   ├── formatters.ts
-        │   └── indicators.ts     # RSI/SMA/EMA/MACD/Bollinger (lato client, per grafici)
+        │   ├── indicators.ts     # RSI/SMA/EMA/MACD/Bollinger (lato client, per grafici)
+        │   └── mortgagePdf.ts    # Genera il PDF del prospetto mutuo (jsPDF + autoTable)
         ├── store/
         │   ├── useAppStore.ts
         │   └── useChatStore.ts
